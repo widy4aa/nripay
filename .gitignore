@@ -1,4 +1,4 @@
-# Miscellaneous
+# ─── Flutter / Dart (client/) ───────────────────────────────────
 *.class
 *.log
 *.pyc
@@ -12,34 +12,46 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IntelliJ
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# Flutter/Dart/Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+/client/build/
 /build/
 /coverage/
 
-# Symbolication related
+# Symbolication / Obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# Android build artifacts
+/client/android/app/debug
+/client/android/app/profile
+/client/android/app/release
+
+# ─── Backend ────────────────────────────────────────────────────
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/.env.local
+backend/prisma/*.db
+
+# ─── Dashboard ──────────────────────────────────────────────────
+dashboard/node_modules/
+dashboard/.next/
+dashboard/dist/
+dashboard/.env
+dashboard/.env.local
+
+# ─── Tools ──────────────────────────────────────────────────────
+.aider*
+.claude/
