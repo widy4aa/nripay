@@ -1,348 +1,364 @@
 # 📄 SRS — Nirpay Dashboard (Admin Panel)
-**Version:** 1.0 | **Status:** Planning | **Stack:** Next.js 15 (App Router) + Tailwind CSS + shadcn/ui
+**Version:** 2.0 | **Status:** Planning | **Stack:** Next.js 15 (App Router) + Tailwind CSS + shadcn/ui
 **Last updated:** 2026-07-12
 
-> **Catatan:** Dashboard adalah admin panel web untuk monitoring, manajemen user,
-> review KYC, visualisasi chain/hop, dan kontrol CBDC.
-> Menggunakan API backend yang sama (`/api/v1/admin/*`).
+> **Perubahan v2.0:** Dokumen ini adalah **SRS murni** — berisi spesifikasi fungsional, kontrak API, data model, dan aturan bisnis. Semua wireframe UI dipindahkan ke [`dokumen/ui_ux/dashboard/`](../ui_ux/dashboard/).
 
 ---
 
 ## Daftar Isi
 
 1. [Arsitektur & Tech Stack](#1-arsitektur--tech-stack)
-2. [Modul Login & Admin Auth](#2-modul-login--admin-auth)
-3. [Modul Beranda (Overview)](#3-modul-beranda-overview)
-4. [Modul User Management](#4-modul-user-management)
-5. [Modul KYC Management](#5-modul-kyc-management)
-6. [Modul Global Ledger & Hop Chain Tracker](#6-modul-global-ledger--hop-chain-tracker)
-7. [Modul Anomaly & Fraud Monitor](#7-modul-anomaly--fraud-monitor)
-8. [Modul Transaction Control — Freeze & Interrupt](#8-modul-transaction-control--freeze--interrupt)
-9. [Modul CBDC Mint & Rollback](#9-modul-cbdc-mint--rollback)
-10. [Modul Balance Adjustment](#10-modul-balance-adjustment)
-11. [Modul Dispute Management (Client Banding)](#11-modul-dispute-management-client-banding)
-12. [Modul Claim Management](#12-modul-claim-management)
-13. [Modul Analytics & Reports](#13-modul-analytics--reports)
-14. [Modul System Health & Config](#14-modul-system-health--config)
-15. [Status Keseluruhan Fitur](#15-status-keseluruhan-fitur)
+2. [Navigasi & Routing](#2-navigasi--routing)
+3. [Modul Login & Admin Auth](#3-modul-login--admin-auth)
+4. [Modul Beranda (Overview)](#4-modul-beranda-overview)
+5. [Modul User Management](#5-modul-user-management)
+6. [Modul KYC Management](#6-modul-kyc-management)
+7. [Modul Global Ledger & Chain Viewer](#7-modul-global-ledger--chain-viewer)
+8. [Modul Hop Chain Tracker](#8-modul-hop-chain-tracker)
+9. [Modul Transaction Control (Freeze/Interrupt)](#9-modul-transaction-control-freezeinterrupt)
+10. [Modul CBDC Mint & Rollback](#10-modul-cbdc-mint--rollback)
+11. [Modul Balance Adjustment](#11-modul-balance-adjustment)
+12. [Modul Dispute Management](#12-modul-dispute-management)
+13. [Modul Claim Management](#13-modul-claim-management)
+14. [Modul Anomaly & Fraud Monitor](#14-modul-anomaly--fraud-monitor)
+15. [Modul Analytics & Reports](#15-modul-analytics--reports)
+16. [Modul System Health & Config](#16-modul-system-health--config)
+17. [Aturan Bisnis & Validasi](#17-aturan-bisnis--validasi)
+18. [Status Keseluruhan Fitur](#18-status-keseluruhan-fitur)
 
 ---
 
 ## 1. Arsitektur & Tech Stack
 
-### High-Level
+### High-Level Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                  NIRPAY DASHBOARD                     │
-│                  (Next.js App Router)                 │
-├──────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
-│  │ Sidebar  │  │ Top Bar  │  │ Page Content     │   │
-│  │ Nav Menu │  │ User,    │  │ (Per Module)     │   │
-│  │          │  │ Search,  │  │                  │   │
-│  │          │  │ Alerts   │  │                  │   │
-│  └──────────┘  └──────────┘  └──────────────────┘   │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│           NIRPAY DASHBOARD (Next.js 15)      │
+├──────────────────────────────────────────────┤
+│  App Router (SSR) → Backend API (NestJS)     │
+│  shadcn/ui + Tailwind → PostgreSQL + Redis   │
+│  Recharts → TanStack Table → SWR (fetch)     │
+└──────────────────────────────────────────────┘
          │
          ▼
-┌──────────────────────────────────────────────────────┐
-│  Backend API  (/api/v1/admin/*)                      │
-│  NestJS + PostgreSQL + Redis                         │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Backend API  (/api/v1/admin/*)              │
+│  NestJS + Prisma + PostgreSQL + Redis        │
+└──────────────────────────────────────────────┘
 ```
 
 ### Tech Stack
 
-| Component | Technology | Alasan |
-|-----------|-----------|--------|
+| Komponen | Teknologi | Alasan |
+|----------|-----------|--------|
 | Framework | Next.js 15 (App Router) | SSR, server components, file-based routing |
 | UI Library | shadcn/ui + Tailwind CSS | Konsisten, accessible, customizable |
 | Charts | Recharts | Lightweight, kompatibel React |
-| Table | TanStack Table | Sortable, filterable, paginated table |
+| Table | TanStack Table | Sortable, filterable, paginated |
 | Auth | NextAuth.js / custom JWT | Admin session management |
 | State | React Server Components + SWR | Server-first, client revalidation |
-| WebSocket | Socket.io (opsional) | Real-time updates (anomaly alerts) |
+| WebSocket | Socket.io (opsional) | Real-time anomaly alerts |
+
+### Wireframe
+
+> Lihat [`dokumen/ui_ux/dashboard/01_dashboard_wireframe.md`](../ui_ux/dashboard/01_dashboard_wireframe.md) untuk wireframe visual semua halaman.
 
 ---
 
-## 2. Modul Login & Admin Auth
+## 2. Navigasi & Routing
 
-### 2.1 Login Page
+### Sidebar Navigation
+
+```
+/dashboard              → Overview
+/users                  → User Management
+/users/:id              → User Detail
+/users/:id/hops         → User Hop History
+/kyc                    → KYC Queue
+/ledger                 → Global Ledger
+/ledger/chain/:mint_id  → Chain Visualizer
+/ledger/tracker         → Hop Chain Tracker
+/ledger/freeze          → Freeze Transaction
+/ledger/freezes         → Active Freezes
+/anomalies              → Anomaly Dashboard
+/anomalies/:id          → Anomaly Detail
+/mint                   → Manual Mint
+/balance/adjust         → Adjust Balance
+/balance/history/:uid   → Adjustment History
+/disputes               → Dispute Queue
+/disputes/:id           → Dispute Detail
+/claims                 → Claim Queue
+/claims/:id             → Claim Detail
+/analytics/transactions → Transaction Analytics
+/analytics/fraud        → Fraud Analytics
+/analytics/disputes     → Dispute Analytics
+/system/health          → System Health
+/system/config          → System Config
+```
+
+### Auth Guard
+
+```
+Semua route /dashboard/* wajib:
+  1. Cookie JWT valid (httpOnly, secure)
+  2. users.role = 'ADMIN' atau 'SUPER_ADMIN'
+  3. Jika tidak → redirect ke /login
+  4. Jika role = 'USER' → tolak: "Akses ditolak"
+```
+
+---
+
+## 3. Modul Login & Admin Auth
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/login` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────┐
-│           NIRPAY ADMIN PANEL                │
-│                                             │
-│  ┌─────────────────────────────────────┐   │
-│  │  Email:    [admin@nirpay.id      ]  │   │
-│  │  Password: [••••••••             ]  │   │
-│  │                                         │   │
-│  │  [  Masuk  ]                           │   │
-│  │                                         │   │
-│  │  🔒 Hanya admin yang terdaftar         │   │
-│  └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
-```
+### Elemen UI
+- Input: Email
+- Input: Password (toggle show/hide)
+- Tombol: **Masuk**
+- Teks: "Hanya admin yang terdaftar"
 
-**Logic:**
+### Logic
 1. POST `/api/v1/auth/login` dengan credential
 2. Cek `users.role = 'ADMIN' atau 'SUPER_ADMIN'`
 3. Jika role USER → tolak: "Akses ditolak"
-4. Set JWT ke cookie (httpOnly, secure)
+4. Set JWT ke cookie (httpOnly, secure, sameSite=strict)
 5. Redirect ke `/dashboard`
 
-**Yang Belum:**
+### API Endpoint
+```
+POST /api/v1/auth/login
+Request:  { email, password }
+Response: { access_token, refresh_token, user: { id, role, full_name } }
+Error:    401 INVALID_CREDENTIALS | 403 ACCESS_DENIED
+```
+
+### Yang Belum
 - [ ] Login page UI
-- [ ] Admin auth guard (route middleware)
+- [ ] Admin auth guard (middleware)
 - [ ] Role-based access control (RBAC)
+- [ ] Session refresh otomatis
+- [ ] Logout (hapus cookie)
 
 ---
 
-## 3. Modul Beranda (Overview)
-
-### 3.1 Dashboard Overview
+## 4. Modul Beranda (Overview)
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/dashboard` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+### Komponen
 
+**Stat Cards (4 kartu):**
+| Card | Data Source | Format |
+|------|-------------|--------|
+| Total Users | `COUNT(users)` | Number + trend % |
+| Total Transactions | `COUNT(global_ledger)` | Number + trend % |
+| Volume Today | `SUM(global_ledger.amount_cent)` WHERE created_at = today | Currency Rp |
+| Active Chains | `COUNT(DISTINCT mint_tx_id)` WHERE status = SYNCED | Number |
+
+**Charts (2 panel):**
+| Chart | Type | Data |
+|-------|------|------|
+| TX per Hari (7d) | Bar/Line | `GROUP BY DATE(created_at)` last 7 hari |
+| Top Anomaly Types | Pie | `GROUP BY anomaly_type` last 30 hari |
+
+**Quick Links (2 kartu):**
+| Link | Badge | Action |
+|------|-------|--------|
+| Pending KYC | Count (merah jika > 0) | → `/kyc` |
+| Recent Anomalies | Count HIGH/CRITICAL | → `/anomalies` |
+
+**Live Activity Feed:**
+- Tampilkan 10 aktivitas terakhir dari `admin_actions` (polling setiap 10 detik atau WebSocket)
+- Format: `[Waktu] — [Actor] [Action] [Target]`
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Dashboard Overview                                                 │
-├───────────────┬───────────────┬───────────────┬─────────────────────┤
-│  Total Users  │  Total Tx     │  Volume Today │  Active Chains      │
-│  12,450       │  45,230       │  Rp 2.3M      │  1,234              │
-│  ↑ 12% bulan  │  ↑ 8% bulan   │  ↑ 15% kmrn   │  890 aktif          │
-├───────────────┴───────────────┴───────────────┴─────────────────────┤
-│                                                                     │
-│  ┌──────────────────────┐  ┌──────────────────────┐                │
-│  │  TX per Hari (7d)    │  │  Top Anomaly Types   │                │
-│  │  📊 Bar chart        │  │  📊 Pie chart        │                │
-│  └──────────────────────┘  └──────────────────────┘                │
-│                                                                     │
-│  ┌──────────────────────┐  ┌──────────────────────┐                │
-│  │  Pending KYC         │  │  Recent Anomalies    │                │
-│  │  🔴 15 menunggu      │  │  ⚠️ 3 high severity  │                │
-│  │  [Review Sekarang]   │  │  [Lihat Semua]       │                │
-│  └──────────────────────┘  └──────────────────────┘                │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────┐      │
-│  │  Live Activity Feed                                      │      │
-│  │  • 14:32 — User #1234 sync 5 tx → 4 SYNCED, 1 REJECTED │      │
-│  │  • 14:30 — User #5678 topup Rp 500rb → SUCCESS          │      │
-│  │  • 14:28 — ⚠️ CHAIN_FORK detected on mint #abc-123      │      │
-│  └──────────────────────────────────────────────────────────┘      │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/analytics/overview
+Response: { total_users, total_tx, volume_today, active_chains, pending_kyc, anomaly_count }
+
+GET /api/v1/admin/analytics/transactions?days=7
+Response: { data: [{ date, count, volume }] }
+
+GET /api/v1/admin/analytics/fraud?days=30
+Response: { data: [{ anomaly_type, count }] }
+
+GET /api/v1/admin/audit-log?limit=10
+Response: { actions: [{ id, admin_name, action_type, target_type, created_at }] }
 ```
-
-**Data dari API:**
-- `GET /admin/analytics/overview` → stat cards
-- `GET /admin/analytics/transactions` → chart data
-- `GET /admin/transactions/anomalies?limit=5` → recent anomalies
-- `GET /admin/users?kyc_status=PENDING&limit=5` → pending KYC
-
-**Yang Belum:**
-- [ ] Semua halaman overview
-- [ ] Chart components
-- [ ] Live activity feed (WebSocket atau polling)
 
 ---
 
-## 4. Modul User Management
+## 5. Modul User Management
 
-### 4.1 User List
+### 5.1 User List
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/users` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  User Management                                                    │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  🔍 Search: [nama, email, username...     ]  Filter: [KYC ▼] [Role ▼]│
-│                                                                     │
-│  ┌────┬──────────┬───────────┬────────┬──────┬────────┬──────────┐ │
-│  │ #  │ User     │ Email     │ KYC    │ Saldo│ Tx     │ Status   │ │
-│  ├────┼──────────┼───────────┼────────┼──────┼────────┼──────────┤ │
-│  │ 1  │ Widya F. │ widy@...  │ ✅     │ 2.3M │ 45     │ Active   │ │
-│  │ 2  │ Budi S.  │ budi@...  │ ⏳     │ 500K │ 12     │ Active   │ │
-│  │ 3  │ Ani R.   │ ani@...   │ ❌     │ 0    │ 0      │ Locked   │ │
-│  └────┴──────────┴───────────┴────────┴──────┴────────┴──────────┘ │
-│                                                                     │
-│  Page 1 of 50  [← Prev]  [Next →]                                  │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Kolom Tabel:**
+| Kolom | Sumber | Format |
+|-------|--------|--------|
+| # | auto-number | Integer |
+| User | `full_name` + `username` | Avatar (inisial) + nama |
+| Email | `email` | Text |
+| KYC | `kyc_status` | Badge: ✅/⏳/❌ |
+| Saldo | `wallet_balances.amount_cent` | Currency Rp |
+| Tx Count | `COUNT(global_ledger)` | Number |
+| Status | `is_active` + `is_locked` | Badge: Active/Locked |
 
-**Filter Options:**
-- KYC Status: Semua / UNVERIFIED / PENDING / APPROVED / REJECTED
-- Role: Semua / USER / ADMIN
-- Status: Semua / Active / Locked / Inactive
-- Balance: Semua / > 0 / = 0
-- Sort: Created (newest/oldest), Balance (high/low), Tx count
+**Filter:**
+- KYC Status: ALL / UNVERIFIED / PENDING / APPROVED / REJECTED
+- Role: ALL / USER / ADMIN
+- Status: ALL / Active / Locked
+- Sort: Created (newest/oldest), Balance (high/low)
 
----
+**Pagination:** 20 item per halaman
 
-### 4.2 User Detail
+### 5.2 User Detail
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/users/:id` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ← Kembali ke Users                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────┐  Widya Fitriadi (@widyaf)                         │
-│  │    [Avatar]  │  widya@nirpay.id | +62 812 xxx xxx               │
-│  │     WF       │  Joined: 12 Jul 2026 | KYC: ✅ Approved          │
-│  └─────────────┘  Role: USER | Status: Active                       │
-│                                                                     │
-│  ┌─── Tab: Overview ───┬─── Chains ───┬─── Transactions ───┐       │
-│                                                                     │
-│  WALLET INFO                                                        │
-│  ┌────────────────────────────────────────────────────────┐        │
-│  │  Saldo       : Rp 2,300,000                           │        │
-│  │  Reserved    : Rp 0                                    │        │
-│  │  Spendable   : Rp 2,300,000                           │        │
-│  │  Max Hop     : 3                                       │        │
-│  │  Total Minted: Rp 5,000,000 (3x topup)                │        │
-│  │  Total Sent  : Rp 3,200,000 (15 tx)                   │        │
-│  │  Last Sync   : 12 Jul 2026, 14:30                     │        │
-│  └────────────────────────────────────────────────────────┘        │
-│                                                                     │
-│  RECENT TRANSACTIONS                                                │
-│  ┌────────────────────────────────────────────────────────┐        │
-│  │  12 Jul 14:30  SEND  NFC   → Budi S.   -Rp 200,000  │        │
-│  │  12 Jul 10:15  RECV  NFC   ← Ani R.    +Rp 500,000  │        │
-│  │  11 Jul 08:00  TOPUP VA     Rp 1,000,000   ✅ SYNCED │        │
-│  └────────────────────────────────────────────────────────┘        │
-│                                                                     │
-│  ACTIONS                                                            │
-│  [  Force Sync  ]  [  View Chains  ]  [  Flag Account  ]          │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Header:**
+- Avatar + Nama + Username + Email
+- Badge KYC + Role + Status
+- Joined date
 
-**Tab "Chains" (paling penting):**
-Menampilkan semua CBDC chain yang pernah dimiliki user ini.
-Setiap chain = satu `mint_tx_id` dengan seluruh hop-nya.
+**Tabs:**
+| Tab | Isi | Data Source |
+|-----|-----|-------------|
+| Overview | Wallet info, recent tx | `wallet_balances` + `global_ledger` |
+| Chains | Semua chain yang diikuti user | `global_ledger` WHERE sender_id OR receiver_id = id |
+| Transactions | Semua transaksi user | `global_ledger` WHERE sender_id OR receiver_id = id |
+| Hops | Hop history per chain | `global_ledger` GROUP BY mint_tx_id |
 
-**Yang Belum:**
-- [ ] User list page
-- [ ] User detail page
-- [ ] User detail tabs
+**Wallet Info Panel:**
+| Field | Sumber |
+|-------|--------|
+| Saldo | `amount_cent` |
+| Reserved | `reserved_cent` |
+| Spendable | `amount_cent - reserved_cent` |
+| Max Hop | `max_hop` |
+| Total Minted | `SUM(amount_cent)` WHERE tx_type=TOPUP |
+| Total Sent | `SUM(amount_cent)` WHERE direction=SEND |
+| Total Received | `SUM(amount_cent)` WHERE direction=RECEIVE |
+| Last Sync | `last_synced_at` |
+
+**Actions (tombol):**
+- [Force Sync] — trigger sync untuk user ini
+- [View Chains] → `/ledger` filtered by user
+- [Adjust Balance] → `/balance/adjust?user_id=...`
+- [Freeze Account] → freeze dialog
+- [Flag Account] — tandai untuk investigasi
+
+### API Endpoints
+```
+GET /api/v1/admin/users?page=1&limit=20&kyc_status=ALL&role=ALL&status=ALL&sort=created_at&order=desc
+Response: { users: [...], total, page, has_more }
+
+GET /api/v1/admin/users/:id
+Response: { user: {...}, wallet: {...}, tx_summary: {...} }
+
+GET /api/v1/admin/users/:id/chains
+Response: { chains: [{ mint_tx_id, hops: [...], status, total_amount }] }
+
+GET /api/v1/admin/users/:id/hops
+Response: { hop_history: [{ mint_tx_id, hop_count, role, amount, counterpart, date }] }
+```
 
 ---
 
-## 5. Modul KYC Management
-
-### 5.1 KYC Queue
+## 6. Modul KYC Management
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/kyc` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  KYC Management                                    15 pending       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Filter: [All ▼] [Submitted > 24h]                                  │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  KYC Request #1                                             │   │
-│  │  User: Widya Fitriadi (@widyaf)                             │   │
-│  │  Submitted: 12 Jul 2026, 08:00 (6 jam lalu)                 │   │
-│  │                                                             │   │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐        │   │
-│  │  │                      │  │  Detail:             │        │   │
-│  │  │    [Foto Wajah]      │  │  Nama: Widya Fitriadi│        │   │
-│  │  │                      │  │  Lahir: 15/05/1999   │        │   │
-│  │  │                      │  │  Gender: Laki-laki   │        │   │
-│  │  └──────────────────────┘  └──────────────────────┘        │   │
-│  │                                                             │   │
-│  │  [ ✅ Approve ]  [ ❌ Reject + Alasan ]  [ ⏭️ Skip ]       │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+### Fitur
+- Tampilan antrean: user dengan `kyc_status = 'PENDING'`
+- Sort: submitted_at (terlama dulu)
+- Filter: All / Submitted > 24h / Submitted > 48h
 
-**Approve Logic:**
-1. Click "Approve"
-2. POST `/admin/users/:id/kyc/approve`
-3. `users.kyc_status = 'APPROVED'`, `is_kyc_done = true`
-4. Log ke `kyc_audit_logs` + `audit_logs`
+### Data per Item
+| Field | Sumber |
+|-------|--------|
+| User | `full_name` + `username` |
+| Submitted | `kyc_submitted_at` |
+| Duration | `now() - kyc_submitted_at` |
+| Foto | `kyc_face_url` (image preview) |
+| Detail | Nama, Lahir, Gender dari `users` |
 
-**Reject Logic:**
-1. Click "Reject"
-2. Modal: input alasan wajib (dropdown + textarea)
-3. POST `/admin/users/:id/kyc/reject`
-4. `users.kyc_status = 'REJECTED'`, `kyc_reject_reason = '...'`
-5. Log ke `kyc_audit_logs` + `audit_logs`
+### Actions
+| Action | Endpoint | Efek |
+|--------|----------|------|
+| Approve | `POST /admin/users/:id/kyc/approve` | `kyc_status = 'APPROVED'`, `is_kyc_done = true` |
+| Reject | `POST /admin/users/:id/kyc/reject` | `kyc_status = 'REJECTED'`, `kyc_reject_reason = ...` |
+
+### Reject Dialog (wajib)
+- Dropdown alasan: Foto tidak jelas / Wajah tidak terlihat / Dokumen tidak valid / Lainnya
+- Textarea catatan (opsional)
+- Tombol **Reject** (danger color)
+
+### API Endpoints
+```
+GET /api/v1/admin/users?kyc_status=PENDING&page=1&limit=10
+Response: { users: [...], total }
+
+POST /api/v1/admin/users/:id/kyc/approve
+Response: { status: 'success', kyc_status: 'APPROVED' }
+
+POST /api/v1/admin/users/:id/kyc/reject
+Request:  { reason: string, note?: string }
+Response: { status: 'success', kyc_status: 'REJECTED' }
+```
 
 ---
 
-## 6. Modul Global Ledger & Hop Chain Tracker
+## 7. Modul Global Ledger & Chain Viewer
 
-> **INI FITUR PALING KRITIS DAN UNIK DARI NIRPAY.**
-> Admin bisa melihat seluruh perjalanan satu token CBDC dari TOPUP sampai hop terakhir.
-
-### 6.1 Global Ledger — Transaction List
+### 7.1 Global Ledger List
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/ledger` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Global Ledger                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  🔍 Search: [tx_id, mint_tx_id...  ]                               │
-│  Filter: [Status ▼] [Type ▼] [Medium ▼] [Date Range]              │
-│                                                                     │
-│  ┌────────────┬────────────┬──────┬──────┬──────┬────────┬────────┐│
-│  │ TX ID      │ Mint TX    │ Hop  │ From │ To   │ Amount │ Status ││
-│  ├────────────┼────────────┼──────┼──────┼──────┼────────┼────────┤│
-│  │ abc-123... │ mint-001   │ 0    │ Bank │ Widya│ 500K   │ ✅     ││
-│  │ def-456... │ mint-001   │ 1    │ Widya│ Budi │ 200K   │ ✅     ││
-│  │ ghi-789... │ mint-001   │ 2    │ Budi │ Ani  │ 100K   │ ✅     ││
-│  │ jkl-012... │ mint-001   │ 3    │ Ani  │ Dika │  50K   │ ⏳     ││
-│  │ mno-345... │ mint-099   │ 1    │ Widya│ Eka  │ 300K   │ ❌     ││
-│  └────────────┴────────────┴──────┴──────┴──────┴────────┴────────┘│
-│                                                                     │
-│  Click baris → buka "Chain Detail" (see 6.2)                       │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Kolom Tabel:**
+| Kolom | Sumber | Format |
+|-------|--------|--------|
+| TX ID | `tx_id` | UUID (truncated, copyable) |
+| Mint TX | `mint_tx_id` | UUID (truncated, link ke chain viewer) |
+| Hop | `hop_count` | Integer |
+| From | `sender_id` → `users.full_name` | Avatar + nama |
+| To | `receiver_id` → `users.full_name` | Avatar + nama |
+| Amount | `amount_cent` | Currency Rp |
+| Medium | `transfer_medium` | Icon: 📱NFC / 📶BT / 🌐Online |
+| Status | `status` | Badge: ✅SYNCED / ❌REJECTED / ⏸️FROZEN |
+| Date | `created_at` | Relative time |
 
 **Filter:**
-- Status: Semua / SYNCED / REJECTED
-- Type: TOPUP / P2P_TRANSFER / WITHDRAW
-- Medium: NFC / BLUETOOTH / ONLINE
+- Status: ALL / SYNCED / REJECTED / FROZEN
+- Type: ALL / TOPUP / P2P_TRANSFER / MANUAL_MINT
+- Medium: ALL / NFC / BLUETOOTH / ONLINE
 - Date range picker
 
----
+**Click baris** → buka Chain Visualizer untuk `mint_tx_id` tersebut
 
-### 6.2 Chain Detail — Hop Chain Visualizer
+### 7.2 Chain Visualizer
 
 | Atribut | Detail |
 |---------|--------|
@@ -350,1093 +366,633 @@ Setiap chain = satu `mint_tx_id` dengan seluruh hop-nya.
 | **Status** | ❌ Belum Ada |
 
 **Deskripsi:**
-Halaman ini menvisualisasikan SELURUH chain dari satu `mint_tx_id`.
-Admin bisa melihat perjalanan satu token dari TOPUP awal sampai hop terakhir.
+Visualisasi grafis perjalanan satu token CBDC dari TOPUP sampai hop terakhir.
 
-**Elemen UI — Chain Flow Visualization:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ← Kembali ke Ledger                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Chain: mint-001                                                    │
-│  Status: ✅ Active | Max Hop: 3 | Current: Hop 3                    │
-│  Total Volume: Rp 850,000 | Created: 12 Jul 2026, 08:00            │
-│                                                                     │
-│  ┌─── CHAIN VISUALIZATION ─────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │   ┌──────────┐     ┌──────────┐     ┌──────────┐           │   │
-│  │   │  HOP 0   │────▶│  HOP 1   │────▶│  HOP 2   │           │   │
-│  │   │  TOPUP   │     │  P2P     │     │  P2P     │           │   │
-│  │   │          │     │  NFC     │     │  NFC     │           │   │
-│  │   └──────────┘     └──────────┘     └──────────┘           │   │
-│  │                                                              │   │
-│  │   Bank           Widya F.          Budi S.         Ani R.   │   │
-│  │   → Widya        → Budi            → Ani           → Dika   │   │
-│  │   Rp 500,000     Rp 200,000        Rp 100,000     Rp 50,000│   │
-│  │                                                              │   │
-│  │   ✅ SYNCED       ✅ SYNCED         ✅ SYNCED      ⏳ PENDING│   │
-│  │   12 Jul 08:00    12 Jul 10:15      12 Jul 12:30   12 Jul 14:00│
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── DETAIL: Click node untuk lihat detail ───────────────────┐   │
-│  │  HOP 2: Budi S. → Ani R.                                    │   │
-│  │  TX ID: ghi-789...                                          │   │
-│  │  Amount: Rp 100,000                                         │   │
-│  │  Medium: NFC                                                │   │
-│  │  Status: ✅ SYNCED                                          │   │
-│  │  Signatures:                                                │   │
-│  │    Bank Sig: ✅ Verified                                    │   │
-│  │    Sender Sig: ✅ Verified                                  │   │
-│  │  Hop Check: ✅ (hop 2 < max_hop 3)                          │   │
-│  │  Expires: 15 Jul 2026, 08:00 (3 hari lagi)                  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── CHAIN STATISTICS ────────────────────────────────────────┐   │
-│  │  Total Hops: 4 (0 → 3)                                      │   │
-│  │  Remaining: 0 (max hop tercapai — perlu sync)               │   │
-│  │  Total Users: 4 (Bank, Widya, Budi, Ani, Dika)             │   │
-│  │  Status: Semua SYNCED ✅                                     │   │
-│  │  Anomalies: 0                                               │   │
-│  │  Last Activity: 12 Jul 2026, 14:00                          │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Header Info:**
+| Field | Value |
+|-------|-------|
+| Status | ACTIVE / FORKED / EXPIRED |
+| Current Hop | hop_count terakhir |
+| Max Hop | `system_config.max_hop` |
+| Total Volume | `SUM(amount_cent)` dalam chain |
 
-**Elemen UI — Jika ada Fork/Detection:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ⚠️ CHAIN FORK DETECTED                                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Chain: mint-099                                                    │
-│  Status: ❌ FORKED | Fork detected at Hop 1                         │
-│                                                                     │
-│  ┌─── CHAIN VISUALIZATION (FORK) ─────────────────────────────┐   │
-│  │                                                              │   │
-│  │   ┌──────────┐                                               │   │
-│  │   │  HOP 0   │                                               │   │
-│  │   │  TOPUP   │                                               │   │
-│  │   │ Bank→Widya│                                              │   │
-│  │   │ Rp 300K  │                                               │   │
-│  │   └────┬─────┘                                               │   │
-│  │        │                                                      │   │
-│  │        ├──────────────────┐                                   │   │
-│  │        ▼                  ▼                                   │   │
-│  │   ┌──────────┐     ┌──────────┐                               │   │
-│  │   │  HOP 1-A │     │  HOP 1-B │  ⚠️ SAME HOP = FORK!        │   │
-│  │   │  ✅ SYNCED│     │  ❌ REJECTED│                           │   │
-│  │   │ Widya→Eka│     │ Widya→Fajar│                             │   │
-│  │   │ Rp 300K  │     │ Rp 300K   │                              │   │
-│  │   └──────────┘     └──────────┘                               │   │
-│  │        │                  │                                   │   │
-│  │        ▼                  ▼ (cascade reject)                  │   │
-│  │   ┌──────────┐     ┌──────────┐                               │   │
-│  │   │  HOP 2-A │     │  HOP 2-B │  ❌ CASCADE REJECTED         │   │
-│  │   │  ⏳ PENDING│     │  ❌ REJECTED│                           │   │
-│  │   │ Eka→Fajar│     │ Fajar→Gita│                              │   │
-│  │   │ Rp 150K  │     │ Rp 100K  │                               │   │
-│  │   └──────────┘     └──────────┘                               │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── FORK ANALYSIS ───────────────────────────────────────────┐   │
-│  │  Winner: Hop 1-A (synced first by Eka)                       │   │
-│  │  Loser:  Hop 1-B (Fajar — double spend attempt)              │   │
-│  │                                                              │   │
-│  │  Affected Users:                                             │   │
-│  │    • Eka (hop 1-A receiver): ✅ Safe                         │   │
-│  │    • Fajar (hop 1-A sender): ⚠️ Under investigation         │   │
-│  │    • Gita (hop 2-B receiver): ❌ Balance adjusted            │   │
-│  │                                                              │   │
-│  │  Actions:                                                    │   │
-│  │  [ Flag Fajar's Account ]  [ Review Anomaly Logs ]          │   │
-│  │  [ Send Alert to Gita ]    [ Force Rollback Hop 2-B ]       │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Visualisasi Graph:**
+- Node per hop: `[HOP N] [TX TYPE] [Sender → Receiver] [Amount] [Status]`
+- Edge: panah penghubung antar hop
+- Jika FORK: cabang visual (2+ node di hop yang sama)
+- Click node → tampilkan detail (signature status, timestamps, counterparty info)
 
-**Data dari API:**
+**Panel Analisis (jika FORK):**
+- Siapa yang menang (sync duluan)
+- Siapa yang kalah (reject)
+- Siapa saja yang terkena cascade
+- Tombol aksi: [Flag User] [Force Close] [View Anomaly Logs]
+
+### API Endpoints
 ```
-GET /admin/ledger/:mint_tx_id
-→ Response:
-{
-  "mint_tx_id": "mint-001",
-  "status": "ACTIVE",
-  "fork_detected": false,
-  "hops": [
-    {
-      "hop_count": 0,
-      "tx_id": "abc-123...",
-      "sender": { "id": "bank", "name": "Bank Sentral" },
-      "receiver": { "id": "widya", "name": "Widya F." },
-      "amount_cent": 50000000,
-      "medium": "TOPUP",
-      "status": "SYNCED",
-      "bank_sig_valid": true,
-      "sender_sig_valid": null,
-      "created_at": "2026-07-12T08:00:00Z"
-    },
-    {
-      "hop_count": 1,
-      "tx_id": "def-456...",
-      "sender": { "id": "widya", "name": "Widya F." },
-      "receiver": { "id": "budi", "name": "Budi S." },
-      "amount_cent": 20000000,
-      "medium": "NFC",
-      "status": "SYNCED",
-      "bank_sig_valid": true,
-      "sender_sig_valid": true,
-      "parent_tx_id": "abc-123...",
-      "created_at": "2026-07-12T10:15:00Z"
-    }
-    // ... hop 2, 3
-  ],
-  "total_volume": 85000000,
-  "max_hop": 3,
-  "current_max_hop": 3
+GET /api/v1/admin/ledger?page=1&limit=20&status=ALL&type=ALL&medium=ALL&date_from=&date_to=
+Response: { transactions: [...], total, page }
+
+GET /api/v1/admin/ledger/:mint_tx_id
+Response: {
+  mint_tx_id, status: 'ACTIVE'|'FORKED',
+  hops: [{ hop_count, tx_id, sender, receiver, amount, medium, status, created_at }],
+  fork_detected: boolean,
+  affected_users: [...]
 }
 ```
 
-**Yang Belum:**
-- [ ] Ledger list page
-- [ ] Chain visualization component (flowchart)
-- [ ] Fork visualization (branching)
-- [ ] Click-to-detail per hop node
-- [ ] Chain statistics panel
-
 ---
 
-### 6.3 Hop Chain Tracker — Real-Time Monitoring
+## 8. Modul Hop Chain Tracker
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/ledger/tracker` |
 | **Status** | ❌ Belum Ada |
 
-**Deskripsi:**
-Halaman khusus untuk memantau semua chain yang masih aktif (belum reset).
-Admin bisa melihat berapa banyak token yang sedang beredar offline.
+### Statistik Global
+| Metric | Query |
+|--------|-------|
+| Total Active Chains | `COUNT(DISTINCT mint_tx_id)` WHERE status=SYNCED |
+| Average Hop | `AVG(hop_count)` |
+| Chains at Max Hop | `COUNT` WHERE hop_count = max_hop |
 
-**Elemen UI:**
+### Hop Distribution (Bar Chart)
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Hop Chain Tracker                                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ACTIVE CHAINS: 1,234                                               │
-│  AVERAGE HOP: 1.8                                                   │
-│  CHAINS AT MAX HOP: 89 ⚠️                                          │
-│                                                                     │
-│  ┌─── HOP DISTRIBUTION ────────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │  Hop 0 (TOPUP): ████████████████████  800 (64.8%)          │   │
-│  │  Hop 1:         ████████              300 (24.3%)           │   │
-│  │  Hop 2:         ████                   80 (6.5%)            │   │
-│  │  Hop 3 (MAX):   ██                     54 (4.4%) ⚠️         │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── CHAINS AT RISK (HOP 3 — PERLU SYNC) ────────────────────┐   │
-│  │  ┌────────────┬────────┬──────┬────────┬──────────────────┐  │   │
-│  │  │ Mint TX    │ Chain  │ Hop  │ Amount │ Created          │  │   │
-│  │  ├────────────┼────────┼──────┼────────┼──────────────────┤  │   │
-│  │  │ mint-abc   │ A→B→C→D│ 3/3  │  60K   │ 12 Jul 08:00    │  │   │
-│  │  │ mint-def   │ X→Y→Z→W│ 3/3  │ 100K   │ 12 Jul 10:30    │  │   │
-│  │  │ mint-ghi   │ P→Q→R→S│ 3/3  │  25K   │ 11 Jul 15:00    │  │   │
-│  │  └────────────┴────────┴──────┴────────┴──────────────────┘  │   │
-│  │                                                              │   │
-│  │  ⚠️ 12 chains akan expired dalam < 12 jam                   │   │
-│  │  [View All At-Risk Chains]                                   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── RECENT SYNC ACTIVITY ───────────────────────────────────┐   │
-│  │  14:32 — User #1234 synced → 5 tx processed (4✅ 1❌)      │   │
-│  │  14:28 — User #5678 synced → 2 tx processed (2✅)          │   │
-│  │  14:25 — ⚠️ Fork detected: mint-099, hop 1                 │   │
-│  │  14:20 — User #9012 synced → 3 tx processed (3✅)          │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+Hop 0 (TOPUP): ████████████████████ 800 (64.8%)
+Hop 1:         ████████             300 (24.3%)
+Hop 2:         ████                  80 (6.5%)
+Hop 3 (MAX):   ██                    54 (4.4%) ⚠️
 ```
 
-**Data dari API:**
+### Chains at Risk Table
+| Kolom | Keterangan |
+|-------|------------|
+| Mint TX ID | Link ke chain viewer |
+| Current Hop | hop_count / max_hop |
+| Amount | total amount dalam chain |
+| Created | waktu TOPUP awal |
+| Expires Soonest | waktu expiry terdekat dalam chain |
+| Age | jam sejak dibuat |
+
+**Warna berdasarkan urgensi:**
+- `> 24 jam`: abu-abu
+- `6-24 jam`: kuning ⚠️
+- `< 6 jam`: merah 🔴
+
+### API Endpoints
 ```
-GET /admin/ledger/tracker
-→ Response:
-{
-  "total_active_chains": 1234,
-  "avg_hop": 1.8,
-  "chains_at_max_hop": 89,
-  "hop_distribution": {
-    "0": 800,
-    "1": 300,
-    "2": 80,
-    "3": 54
-  },
-  "expiring_soon": [
-    {
-      "mint_tx_id": "mint-abc",
-      "current_hop": 3,
-      "total_amount": 6000000,
-      "created_at": "2026-07-12T08:00:00Z",
-      "expires_soonest": "2026-07-13T08:00:00Z"
-    }
-  ],
-  "recent_syncs": [...]
+GET /api/v1/admin/ledger/tracker
+Response: {
+  total_active_chains, avg_hop, chains_at_max_hop,
+  hop_distribution: { 0: N, 1: N, 2: N, 3: N },
+  expiring_soon: [{ mint_tx_id, hop, amount, created_at, expires_soonest }]
 }
 ```
 
-**Yang Belum:**
-- [ ] Hop distribution bar chart
-- [ ] At-risk chains table
-- [ ] Real-time sync activity feed
-- [ ] Auto-refresh (WebSocket atau polling)
-
 ---
 
-### 6.4 Hop History per User
+## 9. Modul Transaction Control (Freeze/Interrupt)
 
-| Atribut | Detail |
-|---------|--------|
-| **Path** | `/users/:id/hops` |
-| **Status** | ❌ Belum Ada |
-
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Hop History — Widya Fitriadi                                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Total chains participated: 8                                       │
-│  Max hop reached: 2 (avg: 1.2)                                     │
-│  Times synced: 15                                                   │
-│                                                                     │
-│  ┌─── CHAIN PARTICIPATION TIMELINE ───────────────────────────┐   │
-│  │                                                              │   │
-│  │  mint-001:  ●────●────●────●  Hop 0→3 (ACTIVE)             │   │
-│  │  mint-002:  ●────●────●        Hop 0→2 (SYNCED, reset)     │   │
-│  │  mint-003:  ●────●             Hop 0→1 (ACTIVE)             │   │
-│  │  mint-004:  ●                  Hop 0 (TOPUP, ACTIVE)        │   │
-│  │                                                              │   │
-│  │  ● = hop created  ─── = chain continuation                  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── DETAILED HISTORY ───────────────────────────────────────┐   │
-│  │  Chain        │ Role  │ Hop │ To/From    │ Amount │ Date    │  │
-│  │  mint-001     │ SEND  │ 1   │ → Budi S.  │ 200K   │ 12 Jul  │  │
-│  │  mint-001     │ SEND  │ 2   │ Budi → Ani │ 100K   │ 12 Jul  │  │
-│  │  mint-002     │ RECV  │ 1   │ ← Ani R.   │ 300K   │ 11 Jul  │  │
-│  │  mint-002     │ SEND  │ 2   │ Ani → Dika │ 150K   │ 11 Jul  │  │
-│  │  mint-003     │ RECV  │ 1   │ ← Eka L.   │ 500K   │ 10 Jul  │  │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Modul Anomaly & Fraud Monitor
-
-### 7.1 Anomaly Dashboard
-
-| Atribut | Detail |
-|---------|--------|
-| **Path** | `/anomalies` |
-| **Status** | ❌ Belum Ada |
-
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Anomaly & Fraud Monitor                                            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────┬──────────────┬──────────────┬────────────────┐    │
-│  │  Total      │  Critical    │  High        │  Unreviewed    │    │
-│  │  1,234      │  5 🔴        │  23 ⚠️       │  45            │    │
-│  └─────────────┴──────────────┴──────────────┴────────────────┘    │
-│                                                                     │
-│  ┌─── ANOMALY BREAKDOWN ──────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │  CHAIN_FORK:        ████████  45 (3.6%)                    │   │
-│  │  DOUBLE_SPEND:      ██████    35 (2.8%)                    │   │
-│  │  HOP_EXCEEDED:      ████      25 (2.0%)                    │   │
-│  │  SIG_INVALID:       ███       20 (1.6%)                    │   │
-│  │  EXPIRED_TX:        ██        15 (1.2%)                    │   │
-│  │  OTHER:             ████████  894 (92.4%)                   │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── FLAGGED USERS ──────────────────────────────────────────┐   │
-│  │  User         │ Anomalies │ Types          │ Last Seen      │  │
-│  │  Fajar K.     │ 12        │ DOUBLE_SPEND x5│ 2 jam lalu     │  │
-│  │  Unknown #99  │ 8         │ SIG_INVALID x8 │ 1 hari lalu    │  │
-│  │  Budi S.      │ 5         │ HOP_EXCEEDED x3│ 30 menit lalu  │  │
-│  │                                                              │   │
-│  │  [View All Flagged Users]                                   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 7.2 Anomaly Detail
-
-| Atribut | Detail |
-|---------|--------|
-| **Path** | `/anomalies/:id` |
-| **Status** | ❌ Belum Ada |
-
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Anomaly Detail — CHAIN_FORK detected on mint-099                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Type: ⚠️ CHAIN_FORK                                               │
-│  Severity: HIGH                                                     │
-│  Detected: 12 Jul 2026, 14:25 (server-side)                        │
-│  User: Widya Fitriadi (#1234)                                       │
-│  Related TX: mno-345...                                             │
-│                                                                     │
-│  ┌─── WHAT HAPPENED ──────────────────────────────────────────┐   │
-│  │  Widya试图将同一token (mint-099) 发送给两个人:             │   │
-│  │                                                              │   │
-│  │  Hop 1-A: Widya → Eka (tx: def-456) — SYNCED ✅           │   │
-│  │  Hop 1-B: Widya → Fajar (tx: mno-345) — REJECTED ❌       │   │
-│  │                                                              │   │
-│  │  Both at hop 1 of mint-099 = CHAIN FORK                     │   │
-│  │                                                              │   │
-│  │  Eka synced first → won. Fajar's tx rejected.               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── RAW PAYLOAD ────────────────────────────────────────────┐   │
-│  │  Bank Signature: ✅ Valid                                   │   │
-│  │  Sender Signature: ✅ Valid (Widya's key)                   │   │
-│  │  Amount: Rp 300,000                                         │   │
-│  │  Hop Count: 1 (claimed)                                     │   │
-│  │  Chain Hop: 1 (calculated)                                  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ACTIONS                                                            │
-│  [ Review User's Other Chains ]  [ Flag for Investigation ]        │
-│  [ View Affected Users (Eka, Fajar) ]                              │
-│  [ No Action — Mark as Reviewed ]                                  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 8. Modul CBDC Mint & Rollback
-
-### 8.1 Manual Mint
-
-| Atribut | Detail |
-|---------|--------|
-| **Path** | `/mint` |
-| **Status** | ❌ Belum Ada |
-
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Manual CBDC Mint                                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ⚠️ Hanya untuk testing. Semua mint tercatat di audit log.         │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  User: [Search user...                      ]           │       │
-│  │  → Widya Fitriadi (@widyaf) — Saldo: Rp 2,300,000     │       │
-│  │                                                         │       │
-│  │  Amount: [Rp 500,000    ]                               │       │
-│  │                                                         │       │
-│  │  Reason: [Testing topup simulation       ]              │       │
-│  │                                                         │       │
-│  │  ┌─────────────────────────────────────────────┐        │       │
-│  │  │  Preview:                                   │        │       │
-│  │  │  Mint Rp 500,000 ke Widya Fitriadi          │        │       │
-│  │  │  Saldo setelah: Rp 2,800,000                │        │       │
-│  │  │  Hop: 0 (freshly minted)                    │        │       │
-│  │  │  Expires: 15 Jul 2026, 14:30                │        │       │
-│  │  └─────────────────────────────────────────────┘        │       │
-│  │                                                         │       │
-│  │  [ 🔒 Confirm Mint ]                                    │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│                                                                     │
-│  ┌─── RECENT MINTS ──────────────────────────────────────────┐    │
-│  │  Time       │ Amount  │ User       │ Status    │ By       │   │
-│  │  14:30      │ 500K    │ Widya F.   │ ✅ SYNCED │ Admin A  │   │
-│  │  14:20      │ 1M      │ Budi S.    │ ✅ SYNCED │ Admin A  │   │
-│  │  13:45      │ 200K    │ Ani R.     │ ✅ SYNCED │ System   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 8.2 Force Rollback
-
-| Atribut | Detail |
-|---------|--------|
-| **Path** | `/ledger/rollback` |
-| **Status** | ❌ Belum Ada |
-
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Force Rollback Transaction                                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ⚠️ Hanya untuk kasus darurat. Rollback tidak bisa dibatalkan.     │
-│                                                                     │
-│  TX ID: [Enter tx_id...                         ]                  │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  Transaction Detail:                                     │       │
-│  │  TX ID: ghi-789...                                      │       │
-│  │  Type: P2P_TRANSFER                                     │       │
-│  │  From: Budi S. → To: Ani R.                             │       │
-│  │  Amount: Rp 100,000                                     │       │
-│  │  Status: ✅ SYNCED                                      │       │
-│  │  Hop: 2 of mint-001                                     │       │
-│  │                                                         │       │
-│  │  ⚠️ Rollback akan:                                      │       │
-│  │    • Deduct Rp 100,000 dari Ani R.'s balance             │       │
-│  │    • Cascade:所有 downstream tx 也将被 reject             │       │
-│  │    • Affected: 1 tx downstream                           │       │
-│  │                                                         │       │
-│  │  Reason: [Investigation required                    ]    │       │
-│  │                                                         │       │
-│  │  [ 🔒 Execute Rollback ]                                 │       │
-│  └─────────────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 8. Modul Transaction Control — Freeze & Interrupt
-
-> **Fitur baru:** Admin bisa menghentikan transaksi yang sedang berjalan, membekukan wallet user, atau menutup seluruh chain.
-
-### 8.1 Freeze Transaction
+### 9.1 Freeze Transaction
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/ledger/freeze` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Freeze Transaction                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  TX ID: [Enter tx_id...                         ]                  │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  Transaction Detail:                                     │       │
-│  │  TX ID: ghi-789...                                      │       │
-│  │  Type: P2P_TRANSFER (NFC)                               │       │
-│  │  From: Budi S. → To: Ani R.                             │       │
-│  │  Amount: Rp 100,000                                     │       │
-│  │  Status: ✅ SYNCED                                      │       │
-│  │  Hop: 2 of mint-001                                     │       │
-│  │                                                         │       │
-│  │  Freeze Type:                                           │       │
-│  │  ○ HOLD — Tahan sementara, bisa di-unfreeze             │       │
-│  │  ● FORCE_REJECT — Langsung reject, tidak bisa di-unfreeze│       │
-│  │                                                         │       │
-│  │  Reason (wajib):                                        │       │
-│  │  [Investigasi kecurangan — user laporkan transaksi     ]│       │
-│  │                                                         │       │
-│  │  ⚠️ FORCE REJECT akan:                                  │       │
-│  │    • Reject transaksi ini                               │       │
-│  │    • Cascade reject semua downstream (1 tx)             │       │
-│  │    • Rollback saldo Ani R. (-Rp 100,000)               │       │
-│  │                                                         │       │
-│  │  [ 🔒 Freeze Transaction ]                              │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│                                                                     │
-│  ┌─── RECENT FREEZES ───────────────────────────────────────┐     │
-│  │  Time    │ TX        │ Type  │ Reason           │ By     │     │
-│  │  14:30   │ ghi-789   │ HOLD  │ Investigation    │ Admin A│     │
-│  │  13:15   │ def-456   │ FORCE │ Double spend     │ Admin B│     │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Form Fields:**
+| Field | Tipe | Wajib | Keterangan |
+|-------|------|-------|------------|
+| TX ID | text input | Ya | Cari dari global_ledger |
+| Freeze Type | radio | Ya | `HOLD` (sementara) / `FORCE_REJECT` (permanen) |
+| Reason | textarea | Ya | Minimal 10 karakter |
+| Notes | textarea | Tidak | Catatan internal |
 
----
+**Preview (sebelum submit):**
+- Detail transaksi (type, amount, from → to, status saat ini)
+- Jika FORCE_REJECT: tampilkan affected downstream tx
 
-### 8.2 Freeze User Wallet
+**After Submit:**
+- INSERT ke `frozen_transactions`
+- UPDATE `global_ledger.status = 'FROZEN'`
+- INSERT ke `admin_actions` (audit log)
+- Jika FORCE_REJECT: cascade reject downstream + rollback
+
+### 9.2 Freeze User Wallet
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/users/:id/freeze` |
 | **Status** | ❌ Belum Ada |
 
-**Deskripsi:**
-Bekukan SELURUH wallet user. User tidak bisa kirim/terima/sync sampai di-unfreeze.
+**Konfirmasi Dialog:**
+- "Membekukan akun ini akan: Membekukan semua transaksi, Mencegah kirim/terima/sync, User melihat notifikasi 'Akun dibekukan'"
+- Input: Alasan (wajib)
+- Tombol: **Freeze Account** (danger)
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Freeze User Wallet — Widya Fitriadi                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ⚠️ Membekukan akun ini akan:                                       │
-│    • Membekukan semua transaksi yang belum selesai                  │
-│    • Mencegah user kirim/terima uang                                │
-│    • Mencegah user sync ke server                                   │
-│    • User akan melihat notifikasi "Akun dibekukan"                  │
-│                                                                     │
-│  Reason (wajib):                                                    │
-│  [Flagged for multiple fraud attempts                           ]  │
-│                                                                     │
-│  [ 🔒 Freeze Account ]    [ Cancel ]                                │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 8.3 Active Freezes Management
+### 9.3 Active Freezes Management
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/ledger/freezes` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Dua Tabel:**
+
+**Frozen Transactions:**
+| Kolom | Keterangan |
+|-------|------------|
+| TX ID | Link ke chain viewer |
+| Users | From → To |
+| Amount | Currency Rp |
+| Freeze Type | HOLD / FORCE_REJECT |
+| Reason | Alasan |
+| Frozen By | Admin name |
+| Date | frozen_at |
+| Actions | [Unfreeze] [Force Reject] [View Chain] |
+
+**Frozen Accounts:**
+| Kolom | Keterangan |
+|-------|------------|
+| User | Name + username |
+| Frozen Since | created_at |
+| Reason | Alasan |
+| Frozen By | Admin name |
+| Actions | [Unfreeze Account] [View Activity] |
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Active Freezes                                    5 frozen tx      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  FROZEN TRANSACTIONS                                        │   │
-│  │  ┌────┬────────┬────────┬──────┬────────────┬──────────┐   │   │
-│  │  │ #  │ TX ID  │ Users  │ Amt  │ Reason     │ Frozen By│   │   │
-│  │  ├────┼────────┼────────┼──────┼────────────┼──────────┤   │   │
-│  │  │ 1  │ ghi-789│ B→A    │ 100K │ Fraud inv  │ Admin A  │   │   │
-│  │  │ 2  │ jkl-012│ W→D    │  50K │ Suspected  │ Admin B  │   │   │
-│  │  └────┴────────┴────────┴──────┴────────────┴──────────┘   │   │
-│  │                                                             │   │
-│  │  [Unfreeze] [Force Reject] [View Chain]                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  FROZEN ACCOUNTS                                            │   │
-│  │  ┌────┬──────────┬──────────┬────────────┬──────────────┐  │   │
-│  │  │ #  │ User     │ Frozen   │ Reason     │ Frozen By    │  │   │
-│  │  ├────┼──────────┼──────────┼────────────┼──────────────┤  │   │
-│  │  │ 1  │ Fajar K. │ 2h lalu  │ Fraud x5   │ Admin A      │  │   │
-│  │  └────┴──────────┴──────────┴────────────┴──────────────┘  │   │
-│  │                                                             │   │
-│  │  [Unfreeze Account] [View Activity]                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/transactions?frozen=true
+Response: { transactions: [...], total }
+
+GET /api/v1/admin/accounts/frozen
+Response: { accounts: [...], total }
+
+POST /api/v1/admin/transactions/:tx_id/freeze
+Request:  { freeze_type: 'HOLD'|'FORCE_REJECT', reason: string, notes?: string }
+Response: { tx_id, frozen_by, freeze_type, affected_users: [...], downstream_affected: number }
+
+POST /api/v1/admin/transactions/:tx_id/unfreeze
+Response: { tx_id, unfrozen_by, new_status: 'SYNCED' }
+
+POST /api/v1/admin/transactions/:tx_id/force-close
+Response: { tx_id, affected_downstream: number, rollback_items: [...] }
+
+POST /api/v1/admin/users/:id/freeze
+Request:  { reason: string }
+Response: { user_id, frozen_by, frozen_at }
+
+POST /api/v1/admin/users/:id/unfreeze
+Response: { user_id, unfrozen_by }
 ```
 
 ---
 
-## 9. Modul Claim Management
+## 10. Modul CBDC Mint & Rollback
 
-### 9.1 Claim Queue
+### 10.1 Manual Mint
 
 | Atribut | Detail |
 |---------|--------|
-| **Path** | `/claims` |
+| **Path** | `/mint` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Form Fields:**
+| Field | Tipe | Wajib |
+|-------|------|-------|
+| User | Search (auto-complete) | Ya |
+| Amount | Currency input (Rp) | Ya |
+| Reason | Textarea | Ya |
+
+**Preview:**
+- User info (name, current balance)
+- Amount preview
+- Balance after mint
+- Hop: 0 (freshly minted)
+- Expiry: now + 72 jam
+
+**Recent Mints Table:**
+| Kolom | Format |
+|-------|--------|
+| Time | Relative time |
+| Amount | Currency Rp |
+| User | Name + username |
+| Status | SYNCED/PENDING badge |
+| By | Admin name |
+
+### 10.2 Force Rollback
+
+| Atribut | Detail |
+|---------|--------|
+| **Path** | `/ledger/rollback` |
+| **Status** | ❌ Belum Ada |
+
+**Form:**
+- TX ID input → auto-fetch detail
+- Tampilkan: type, from→to, amount, status, hop info
+- Warning: "Rollback akan: deduct saldo, cascade reject downstream X tx"
+- Reason input (wajib)
+- Tombol **Execute Rollback** (danger, double-confirm)
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Claim Management                                  8 pending        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Filter: [All ▼] [Submitted > 24h]                                  │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Claim #1                                                   │   │
-│  │  User: Ani R. (@anir)                                       │   │
-│  │  TX: ghi-789... (Rp 100,000, REJECTED)                     │   │
-│  │  Reason: "Saya yakin transaksi ini valid"                   │   │
-│  │  Submitted: 12 Jul 2026, 15:00 (1 jam lalu)                 │   │
-│  │                                                             │   │
-│  │  [ View Detail ]  [ Approve + Refund ]  [ Reject ]         │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+POST /api/v1/admin/mint
+Request:  { user_id, amount_cent, reason }
+Response: { mint_tx_id, bank_signature_b64, balance_after, expires_at }
+
+POST /api/v1/admin/rollback
+Request:  { tx_id, reason }
+Response: { affected_users: [...], rollback_items: [...] }
 ```
 
 ---
 
-## 10. Modul Balance Adjustment
+## 11. Modul Balance Adjustment
 
-> **Fitur baru:** Admin bisa menambah/mengurangi saldo user secara manual. Client bisa banding.
-
-### 10.1 Adjust Balance
+### 11.1 Adjust Balance
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/balance/adjust` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Balance Adjustment                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  User: [Search user...                      ]                       │
-│  → Widya Fitriadi (@widyaf)                                         │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  CURRENT BALANCE                                         │       │
-│  │  Saldo Saat Ini  : Rp 2,300,000                         │       │
-│  │  Reserved        : Rp 0                                  │       │
-│  │  Spendable       : Rp 2,300,000                         │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  ADJUSTMENT FORM                                         │       │
-│  │                                                         │       │
-│  │  Type:  (●) CREDIT (Tambah)  ( ) DEBIT (Kurangi)       │       │
-│  │                                                         │       │
-│  │  Amount: [Rp 500,000          ]                         │       │
-│  │                                                         │       │
-│  │  Reason (wajib):                                        │       │
-│  │  [Kompensasi transaksi yang di-rollback secara tidak  ]│       │
-│  │  [adil setelah review klaim user                       ]│       │
-│  │                                                         │       │
-│  │  Reference TX (opsional):                               │       │
-│  │  [uuid-tx-yang-di-rollback         ]                    │       │
-│  │                                                         │       │
-│  │  ┌─────────────────────────────────────────────┐        │       │
-│  │  │  PREVIEW                                    │        │       │
-│  │  │  Action  : CREDIT Rp 500,000                │        │       │
-│  │  │  Saldo   : Rp 2,300,000 → Rp 2,800,000     │        │       │
-│  │  │  Notif   : User akan menerima notifikasi    │        │       │
-│  │  │  Dispute : User bisa banding dalam 7 hari   │        │       │
-│  │  └─────────────────────────────────────────────┘        │       │
-│  │                                                         │       │
-│  │  [ 💰 Execute Adjustment ]                              │       │
-│  └─────────────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Form Fields:**
+| Field | Tipe | Wajib |
+|-------|------|-------|
+| User | Search (auto-complete) | Ya |
+| Type | Radio: CREDIT / DEBIT | Ya |
+| Amount | Currency input (Rp) | Ya |
+| Reason | Textarea | Ya |
+| Reference TX ID | Text input (opsional) | Tidak |
 
----
+**Preview (before submit):**
+- Current balance
+- Adjustment type + amount
+- Balance after
+- "User akan menerima notifikasi"
+- "User bisa banding dalam 7 hari"
 
-### 10.2 Adjustment History
+### 11.2 Adjustment History
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/balance/history/:user_id` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Tabel:**
+| Kolom | Format |
+|-------|--------|
+| Date | Datetime |
+| Type | CREDIT (hijau) / DEBIT (merah) |
+| Amount | Currency Rp (±) |
+| Reason | Text (truncated) |
+| Admin | Name |
+| Disputed? | Yes/No badge |
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Balance Adjustment History — Widya Fitriadi                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌────┬────────┬──────────┬────────┬──────────────┬─────────────┐  │
-│  │ #  │ Date   │ Type     │ Amount │ Reason       │ Disputed?   │  │
-│  ├────┼────────┼──────────┼────────┼──────────────┼─────────────┤  │
-│  │ 1  │ 12 Jul │ CREDIT   │ +500K  │ Compensate   │ No          │  │
-│  │ 2  │ 11 Jul │ DEBIT    │ -200K  │ Error adj    │ ⚠️ Yes (1) │  │
-│  │ 3  │ 10 Jul │ CREDIT   │ +1M    │ Topup test   │ No          │  │
-│  └────┴────────┴──────────┴────────┴──────────────┴─────────────┘  │
-│                                                                     │
-│  Total Adjustments: 3 | Total CREDIT: +Rp 1,500,000               │
-│                      | Total DEBIT:   -Rp 200,000                 │
-└─────────────────────────────────────────────────────────────────────┘
+POST /api/v1/admin/balance/:user_id/adjust
+Request:  { adjustment_type: 'CREDIT'|'DEBIT', amount_cent, reason, reference_tx_id?, admin_notes? }
+Response: { user_id, adjustment_type, amount_cent, balance_before, balance_after, adjusted_at, can_be_disputed: true }
+
+GET /api/v1/admin/balance/:user_id/history?page=1&limit=20
+Response: { adjustments: [...], total }
 ```
 
 ---
 
-## 11. Modul Dispute Management (Client Banding)
+## 12. Modul Dispute Management
 
-> **Fitur baru:** Client bisa membanding keputusan admin (freeze, balance adjust, claim reject) dengan memberikan bukti.
-
-### 11.1 Dispute Queue (Admin View)
+### 12.1 Dispute Queue
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/disputes` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Dispute Management                                5 pending        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Filter: [All ▼] [Type ▼] [Submitted > 24h]                        │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Dispute #1                                            NEW  │   │
-│  │  Type: BALANCE_ADJUSTMENT                                   │   │
-│  │  User: Widya Fitriadi (@widyaf)                             │   │
-│  │  Title: "Saldo saya dikurangi tanpa alasan yang jelas"      │   │
-│  │  Reference: Balance adjustment #adj-123 (DEBIT Rp 500K)     │   │
-│  │  Submitted: 12 Jul 2026, 16:00 (30 menit lalu)             │   │
-│  │                                                             │   │
-│  │  Evidence: 2 files (screenshot, receipt)                    │   │
-│  │  Status: ⏳ SUBMITTED                                       │   │
-│  │                                                             │   │
-│  │  [ View Detail + Evidence ]                                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Dispute #2                                                 │   │
-│  │  Type: TRANSACTION_FROZEN                                   │   │
-│  │  User: Budi Santoso (@budisantoso)                          │   │
-│  │  Title: "Transaksi saya dibekukan tanpa pemberitahuan"      │   │
-│  │  Reference: Frozen tx #ghi-789...                           │   │
-│  │  Submitted: 12 Jul 2026, 14:30 (2 jam lalu)                │   │
-│  │                                                             │   │
-│  │  Evidence: 1 file (chat screenshot with receiver)           │   │
-│  │  Status: ⏳ SUBMITTED                                       │   │
-│  │                                                             │   │
-│  │  [ View Detail + Evidence ]                                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Filter:** ALL / SUBMITTED / UNDER_REVIEW / ACCEPTED / REJECTED
 
----
+**Tabel:**
+| Kolom | Format |
+|-------|--------|
+| Dispute ID | UUID (truncated) |
+| Type | TRANSACTION_FROZEN / BALANCE_ADJUSTMENT / CLAIM_REJECTED / OTHER |
+| User | Name + username |
+| Title | Text (truncated) |
+| Evidence | File count badge |
+| Status | Badge |
+| Submitted | Relative time |
+| Actions | [View Detail] |
 
-### 11.2 Dispute Detail (Admin Review)
+### 12.2 Dispute Detail & Review
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/disputes/:id` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Section 1 — User Complaint:**
+- User name + submission date
+- Title
+- Full description
+- Evidence files (image/PDF viewer)
+
+**Section 2 — Admin Action Context:**
+- What action was taken (freeze/adjust/reject)
+- Amount, reason, by whom, when
+- Link to original transaction
+
+**Section 3 — Admin Decision Form:**
+| Field | Tipe |
+|-------|------|
+| Decision | Radio: ACCEPT / PARTIAL_ACCEPT / REJECT |
+| Refund Amount | Currency input (visible jika ACCEPT) |
+| Resolution Notes | Textarea (wajib) |
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ← Back to Disputes                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  DISPUTE #1 — BALANCE_ADJUSTMENT                                    │
-│  Status: ⏳ SUBMITTED                                               │
-│  Submitted: 12 Jul 2026, 16:00                                      │
-│                                                                     │
-│  ┌─── USER COMPLAINT ─────────────────────────────────────────┐   │
-│  │  From: Widya Fitriadi (@widyaf)                             │   │
-│  │                                                             │   │
-│  │  "Saldo saya dikurangi Rp 500.000 oleh admin tanpa          │   │
-│  │   penjelasan yang jelas. Saya menerima uang Rp 500.000     │   │
-│  │   dari Budi secara NFC dan yakin transaksi ini valid.       │   │
-│  │   Saya melampirkan bukti screenshot percakapan dengan Budi  │   │
-│  │   yang mengkonfirmasi dia mengirim uang tersebut."          │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── EVIDENCE FROM USER ─────────────────────────────────────┐   │
-│  │  [📷 evidence-1.jpg]  [📄 evidence-2.pdf]                  │   │
-│  │                                                             │   │
-│  │  Click to preview...                                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── CONTEXT (What Admin Did) ───────────────────────────────┐   │
-│  │  Action: BALANCE_ADJUSTMENT (DEBIT)                         │   │
-│  │  Amount: -Rp 500,000                                        │   │
-│  │  Admin: Admin Budi (@adminbudi)                             │   │
-│  │  Date: 11 Jul 2026, 14:30                                   │   │
-│  │  Reason: "Adjustment because of sync error"                 │   │
-│  │                                                             │   │
-│  │  Related TX: ghi-789... (SYNCED → now FROZEN)               │   │
-│  │  Chain: mint-001 (hop 2)                                    │   │
-│  │                                                             │   │
-│  │  [View Original Transaction]  [View Admin Action Log]       │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── ADMIN DECISION ─────────────────────────────────────────┐   │
-│  │                                                             │   │
-│  │  Decision:                                                  │   │
-│  │  (●) ACCEPT — Banding diterima, kembalikan saldo           │   │
-│  │  ( ) PARTIAL_ACCEPT — Kembalikan sebagian                  │   │
-│  │  ( ) REJECT — Banding ditolak                               │   │
-│  │                                                             │   │
-│  │  Refund Amount (jika ACCEPT):                               │   │
-│  │  [Rp 500,000          ]                                     │   │
-│  │                                                             │   │
-│  │  Resolution Notes (wajib):                                  │   │
-│  │  [Setelah review bukti dari user, transaksi NFC dengan     ]│   │
-│  │  [Budi memang valid. Rollback sebelumnya adalah kesalahan  ]│   │
-│  │  [sistem. Saldo dikembalikan.                               ]│   │
-│  │                                                             │   │
-│  │  ┌─────────────────────────────────────────────┐            │   │
-│  │  │  PREVIEW                                    │            │   │
-│  │  │  Refund    : Rp 500,000 ke Widya Fitriadi   │            │   │
-│  │  │  Saldo     : Rp 1,800,000 → Rp 2,300,000   │            │   │
-│  │  │  Notif     : User akan terima notifikasi    │            │   │
-│  │  └─────────────────────────────────────────────┘            │   │
-│  │                                                             │   │
-│  │  [ ✅ Submit Decision ]                                      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/disputes?page=1&limit=20&status=ALL
+Response: { disputes: [...], total }
+
+GET /api/v1/admin/disputes/:id
+Response: { dispute: {...}, evidence_urls: [...], admin_action_context: {...} }
+
+POST /api/v1/admin/disputes/:id/review
+Request:  { decision: 'ACCEPT'|'PARTIAL_ACCEPT'|'REJECTED', resolution: string, refund_amount_cent?: number }
+Response: { dispute_id, decision, user_balance_after, resolved_at }
 ```
 
 ---
 
-### 11.3 Dispute Statistics
+## 13. Modul Claim Management
+
+### 13.1 Claim Queue
 
 | Atribut | Detail |
 |---------|--------|
-| **Path** | `/disputes/stats` |
+| **Path** | `/claims` |
 | **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Tabel:**
+| Kolom | Format |
+|-------|--------|
+| Claim ID | UUID |
+| User | Name |
+| TX | tx_id + amount |
+| Reason | Text (truncated) |
+| Status | SUBMITTED / UNDER_REVIEW / RESOLVED / REJECTED |
+| Submitted | Relative time |
+| Actions | [View Detail] [Approve + Refund] [Reject] |
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Dispute Statistics                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌───────────┬───────────────┬───────────────┬────────────────┐    │
-│  │  Total    │  Pending      │  Accepted     │  Rejected      │    │
-│  │  45       │  5            │  12 (27%)     │  28 (62%)      │    │
-│  └───────────┴───────────────┴───────────────┴────────────────┘    │
-│                                                                     │
-│  ┌─── DISPUTES BY TYPE ───────────────────────────────────────┐    │
-│  │  BALANCE_ADJUSTMENT:  ████████  20 (44%)                    │   │
-│  │  TRANSACTION_FROZEN:  ██████    15 (33%)                    │   │
-│  │  CLAIM_REJECTED:      ████      10 (22%)                    │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── AVG RESOLUTION TIME ────────────────────────────────────┐    │
-│  │  ACCEPT:  18 jam                                            │   │
-│  │  REJECT:  12 jam                                            │   │
-│  │  Overall: 15 jam                                            │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── DISPUTE RATE (disputes / admin actions) ───────────────┐     │
-│  │  Last 30 days: 45 disputes / 200 admin actions = 22.5%    │     │
-│  │  Trend: ↑ 5% from previous month                           │     │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/claims?page=1&limit=20&status=ALL
+Response: { claims: [...], total }
+
+POST /api/v1/admin/claims/:id/review
+Request:  { decision: 'RESOLVED'|'REJECTED', resolution: string, refund_amount_cent?: number }
+Response: { claim_id, decision, resolved_at }
 ```
 
 ---
 
-## 12. Modul Analytics & Reports
+## 14. Modul Anomaly & Fraud Monitor
 
-### 10.1 Transaction Analytics
+### 14.1 Anomaly Dashboard
+
+| Atribut | Detail |
+|---------|--------|
+| **Path** | `/anomalies` |
+| **Status** | ❌ Belum Ada |
+
+**Summary Cards:**
+| Card | Query |
+|------|-------|
+| Total | `COUNT(anomaly_logs)` last 30 hari |
+| Critical | `COUNT` WHERE severity = 'CRITICAL' |
+| High | `COUNT` WHERE severity = 'HIGH' |
+| Unreviewed | `COUNT` WHERE is_reviewed = false |
+
+**Anomaly Breakdown (Horizontal Bar):**
+- GROUP BY anomaly_type, sorted by count
+
+**Flagged Users Table:**
+| Kolom | Format |
+|-------|--------|
+| User | Name + username |
+| Anomaly Count | Number |
+| Types | Comma-separated anomaly_type |
+| Last Seen | Relative time |
+| Actions | [View Activity] [Block User] |
+
+### 14.2 Anomaly Detail
+
+| Atribut | Detail |
+|---------|--------|
+| **Path** | `/anomalies/:id` |
+| **Status** | ❌ Belum Ada |
+
+**Sections:**
+- Anomaly Info: type, severity, detected_at, user
+- What Happened: technical explanation
+- Raw Payload: hex/base64 viewer
+- Related Transaction: link ke chain viewer
+- Actions: [Review User's Other Chains] [Flag for Investigation] [No Action — Mark Reviewed]
+
+### API Endpoints
+```
+GET /api/v1/admin/anomalies?page=1&limit=20&severity=ALL&type=ALL
+Response: { anomalies: [...], total, summary: { total, critical, high, unreviewed } }
+
+GET /api/v1/admin/anomalies/:id
+Response: { anomaly: {...}, related_tx: {...}, user_history: [...] }
+```
+
+---
+
+## 15. Modul Analytics & Reports
+
+### 15.1 Transaction Analytics
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/analytics/transactions` |
-| **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Transaction Analytics                                              │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Date Range: [Last 7 days ▼]                                       │
-│                                                                     │
-│  ┌─── DAILY TX VOLUME ────────────────────────────────────────┐   │
-│  │  📊 Line chart: tx count + volume per hari                  │   │
-│  │  • Total: 45,230 tx                                        │   │
-│  │  • Volume: Rp 12.5M                                        │   │
-│  │  • Avg per day: 6,461 tx                                   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── TX BY MEDIUM ──────────────────────────────────────────┐    │
-│  │  NFC:       ████████████████████  65%                      │   │
-│  │  Bluetooth: ██████               20%                       │   │
-│  │  Online:    ████                 15%                       │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── HOP UTILIZATION ───────────────────────────────────────┐    │
-│  │  Average hops per chain: 1.8                               │   │
-│  │  Chains at max hop: 89 (7.2%)                              │   │
-│  │  Sync frequency: avg every 18 jam                          │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Charts:**
+- Daily TX Volume (line chart, 7/30/90 hari)
+- TX by Medium (pie chart: NFC/BT/Online)
+- Hop Utilization (avg hop, chains at max hop)
 
----
-
-### 10.2 Fraud Analytics
+### 15.2 Fraud Analytics
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/analytics/fraud` |
-| **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**Charts:**
+- Anomaly Trend (line chart, 30 hari)
+- Top Anomaly Types (horizontal bar)
+- Top Flagged Users (table, top 10)
+
+### 15.3 Dispute Analytics
+
+| Atribut | Detail |
+|---------|--------|
+| **Path** | `/analytics/disputes` |
+
+**Metrics:**
+- Acceptance Rate: `COUNT(ACCEPTED) / COUNT(total)`
+- Avg Resolution Time: `AVG(resolved_at - submitted_at)`
+- Dispute Rate: `disputes / admin_actions`
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Fraud Analytics                                                    │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─── ANOMALY TREND ─────────────────────────────────────────┐    │
-│  │  📊 Line chart: anomalies per hari (last 30 days)          │   │
-│  │  • Total: 1,234                                            │   │
-│  │  • Trend: ↓ 15% dari bulan lalu                            │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── TOP ANOMALY TYPES ────────────────────────────────────┐     │
-│  │  1. CHAIN_FORK: 340 (27.6%) — most common                  │   │
-│  │  2. DOUBLE_SPEND: 280 (22.7%)                              │   │
-│  │  3. HOP_EXCEEDED: 150 (12.2%)                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── TOP FLAGGED USERS ────────────────────────────────────┐     │
-│  │  1. Fajar K. — 15 anomalies (5x DOUBLE_SPEND)             │   │
-│  │  2. Unknown #99 — 12 anomalies (12x SIG_INVALID)          │   │
-│  │  3. Budi S. — 8 anomalies (6x HOP_EXCEEDED)               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/analytics/transactions?period=7d
+GET /api/v1/admin/analytics/fraud?period=30d
+GET /api/v1/admin/analytics/disputes?period=30d
 ```
 
 ---
 
-## 11. Modul System Health & Config
+## 16. Modul System Health & Config
 
-### 11.1 System Health
+### 16.1 System Health
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/system/health` |
-| **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  System Health                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────┬──────────────┬──────────────┬────────────────┐    │
-│  │  Database   │  Redis       │  API Server  │  Storage       │    │
-│  │  ✅ OK      │  ✅ OK       │  ✅ OK       │  ✅ OK         │    │
-│  │  45ms avg   │  12ms avg    │  99.9% uptime│  65% used      │    │
-│  └─────────────┴──────────────┴──────────────┴────────────────┘    │
-│                                                                     │
-│  ┌─── RECENT ERRORS ─────────────────────────────────────────┐    │
-│  │  14:30 — DB connection timeout (recovered in 2s)           │   │
-│  │  13:15 — Rate limit hit for IP 192.168.1.100               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Cards:**
+| Component | Metric |
+|-----------|--------|
+| Database | Latency (ms), connection count |
+| Redis | Latency (ms), memory usage |
+| API Server | Uptime, error rate |
+| Storage | Used / Total |
 
----
+**Recent Errors Table:** Last 20 errors from application logs.
 
-### 11.2 System Config
+### 16.2 System Config
 
 | Atribut | Detail |
 |---------|--------|
 | **Path** | `/system/config` |
-| **Status** | ❌ Belum Ada |
 
-**Elemen UI:**
+**CBDC Settings:**
+| Config Key | Type | Default | Description |
+|------------|------|---------|-------------|
+| `max_hop` | INTEGER | 3 | Batas hop sebelum wajib sync |
+| `tx_expiry_hours` | INTEGER | 72 | Masa berlaku token (jam) |
+| `default_fee_cent` | INTEGER | 0 | Biaya default per transaksi |
+
+**Security Settings:**
+| Config Key | Type | Default | Description |
+|------------|------|---------|-------------|
+| `rate_limit_login` | INTEGER | 5 | Max login attempts per window |
+| `rate_limit_sync` | INTEGER | 10 | Max sync per menit |
+| `session_expiry_days` | INTEGER | 30 | Masa aktif refresh token |
+
+### API Endpoints
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  System Configuration                                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  CBDC Settings                                          │       │
-│  │  Max Hop:           [3  ]                               │       │
-│  │  Tx Expiry (hours): [72 ]                               │       │
-│  │  Default Fee:       [0  ]                               │       │
-│  │                                                         │       │
-│  │  [ Save Changes ]                                       │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │  Security Settings                                      │       │
-│  │  Rate Limit (login):     [5 per 30s    ]                │       │
-│  │  Rate Limit (sync):      [10 per 1min  ]                │       │
-│  │  Max OTP attempts:       [5            ]                │       │
-│  │  Session expiry:         [30 days      ]                │       │
-│  │                                                         │       │
-│  │  [ Save Changes ]                                       │       │
-│  └─────────────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────┘
+GET /api/v1/admin/health
+Response: { db: { latency_ms, status }, redis: {...}, server: { uptime, error_rate } }
+
+GET /api/v1/admin/config
+Response: { configs: [{ key, value, value_type, description }] }
+
+PUT /api/v1/admin/config
+Request:  { key: string, value: string }
+Response: { key, old_value, new_value, updated_at }
 ```
 
 ---
 
-## 15. Status Keseluruhan Fitur
+## 17. Aturan Bisnis & Validasi
 
-| # | Modul | Path | Status |
-|---|-------|------|--------|
-| | **AUTH** | | |
-| 1 | Admin Login | `/login` | ❌ |
-| | **OVERVIEW** | | |
-| 2 | Dashboard Overview | `/dashboard` | ❌ |
-| | **USER MANAGEMENT** | | |
-| 3 | User List | `/users` | ❌ |
-| 4 | User Detail | `/users/:id` | ❌ |
-| 5 | User Hop History | `/users/:id/hops` | ❌ |
-| | **KYC** | | |
-| 6 | KYC Queue | `/kyc` | ❌ |
-| | **LEDGER & HOP TRACKER** | | |
-| 7 | Global Ledger List | `/ledger` | ❌ |
-| 8 | **Chain Visualizer** | `/ledger/chain/:mint_tx_id` | ❌ |
-| 9 | **Hop Chain Tracker** | `/ledger/tracker` | ❌ |
-| 10 | Force Rollback | `/ledger/rollback` | ❌ |
-| | **ANOMALY** | | |
-| 11 | Anomaly Dashboard | `/anomalies` | ❌ |
-| 12 | Anomaly Detail | `/anomalies/:id` | ❌ |
-| | **TRANSACTION CONTROL** *(BARU)* | | |
-| 13 | Freeze Transaction | `/ledger/freeze` | ❌ |
-| 14 | Freeze User Wallet | `/users/:id/freeze` | ❌ |
-| 15 | Active Freezes | `/ledger/freezes` | ❌ |
-| | **CBDC** | | |
-| 16 | Manual Mint | `/mint` | ❌ |
-| | **BALANCE ADJUSTMENT** *(BARU)* | | |
-| 17 | Adjust Balance | `/balance/adjust` | ❌ |
-| 18 | Adjustment History | `/balance/history/:user_id` | ❌ |
-| | **DISPUTE (CLIENT BANDING)** *(BARU)* | | |
-| 19 | Dispute Queue | `/disputes` | ❌ |
-| 20 | Dispute Detail + Review | `/disputes/:id` | ❌ |
-| 21 | Dispute Statistics | `/disputes/stats` | ❌ |
-| | **CLAIMS** | | |
-| 22 | Claim Queue | `/claims` | ❌ |
-| 23 | Claim Detail | `/claims/:id` | ❌ |
-| | **ANALYTICS** | | |
-| 24 | Transaction Analytics | `/analytics/transactions` | ❌ |
-| 25 | Fraud Analytics | `/analytics/fraud` | ❌ |
-| 26 | Dispute Analytics | `/analytics/disputes` | ❌ |
-| | **SYSTEM** | | |
-| 27 | System Health | `/system/health` | ❌ |
-| 28 | System Config | `/system/config` | ❌ |
+### 17.1 Freeze Rules
 
-**Total: 28 pages, 0 implemented**
+| Aturan | Detail |
+|--------|--------|
+| Hanya SUPER_ADMIN yang bisa unfreeze | ADMIN biasa hanya bisa freeze |
+| FORCE_REJECT tidak bisa di-unfreeze | Permanent action |
+| Freeze user = freeze semua transaksi aktif | Termasuk yang PENDING di sync queue |
+| Freeze tx tidak mempengaruhi tx lain dalam chain | Kecuali FORCE_REJECT yang cascade |
+
+### 17.2 Balance Adjustment Rules
+
+| Aturan | Detail |
+|--------|--------|
+| DEBIT harus ada spendable cukup | `amount_cent - reserved_cent >= adjustment_amount` |
+| Adjustment > Rp 10.000.000 butuh 2 approval | SUPER_ADMIN approval kedua |
+| Semua adjustment bisa didispute dalam 7 hari | `can_be_disputed = true` |
+| Adjustment otomatis log ke `admin_actions` | Append-only, tidak bisa dihapus |
+
+### 17.3 Dispute Rules
+
+| Aturan | Detail |
+|--------|--------|
+| Satu reference hanya boleh 1 dispute aktif | Prevent duplicate |
+| User harus upload minimal 1 bukti | Evidence wajib |
+| Admin harus isi resolution notes | Tidak boleh kosong |
+| Jika ACCEPT + refund → otomatis credit saldo | Atomic operation |
 
 ---
 
-## Rekomendasi Prioritas
+## 18. Status Keseluruhan Fitur
 
-### Phase 1 — Foundation
-1. Admin login + auth guard
-2. Dashboard overview (stats cards + charts)
-3. User list + detail
+| # | Modul | Path | SRS | Wireframe |
+|---|-------|------|:---:|:---------:|
+| | **AUTH** | | | |
+| 1 | Admin Login | `/login` | ❌ | ✅ |
+| | **OVERVIEW** | | | |
+| 2 | Dashboard Overview | `/dashboard` | ❌ | ✅ |
+| | **USER MANAGEMENT** | | | |
+| 3 | User List | `/users` | ❌ | ✅ |
+| 4 | User Detail | `/users/:id` | ❌ | ✅ |
+| 5 | User Hop History | `/users/:id/hops` | ❌ | ✅ |
+| | **KYC** | | | |
+| 6 | KYC Queue | `/kyc` | ❌ | ✅ |
+| | **LEDGER** | | | |
+| 7 | Global Ledger List | `/ledger` | ❌ | ✅ |
+| 8 | Chain Visualizer | `/ledger/chain/:mint_id` | ❌ | ✅ |
+| 9 | Hop Chain Tracker | `/ledger/tracker` | ❌ | ✅ |
+| 10 | Force Rollback | `/ledger/rollback` | ❌ | ✅ |
+| | **FREEZE** | | | |
+| 11 | Freeze Transaction | `/ledger/freeze` | ❌ | ✅ |
+| 12 | Freeze User Wallet | `/users/:id/freeze` | ❌ | ✅ |
+| 13 | Active Freezes | `/ledger/freezes` | ❌ | ✅ |
+| | **CBDC** | | | |
+| 14 | Manual Mint | `/mint` | ❌ | ✅ |
+| | **BALANCE** | | | |
+| 15 | Adjust Balance | `/balance/adjust` | ❌ | ✅ |
+| 16 | Adjustment History | `/balance/history/:uid` | ❌ | ✅ |
+| | **DISPUTE** | | | |
+| 17 | Dispute Queue | `/disputes` | ❌ | ✅ |
+| 18 | Dispute Detail | `/disputes/:id` | ❌ | ✅ |
+| 19 | Dispute Statistics | `/disputes/stats` | ❌ | ✅ |
+| | **CLAIMS** | | | |
+| 20 | Claim Queue | `/claims` | ❌ | ✅ |
+| 21 | Claim Detail | `/claims/:id` | ❌ | ✅ |
+| | **ANOMALY** | | | |
+| 22 | Anomaly Dashboard | `/anomalies` | ❌ | ✅ |
+| 23 | Anomaly Detail | `/anomalies/:id` | ❌ | ✅ |
+| | **ANALYTICS** | | | |
+| 24 | Transaction Analytics | `/analytics/transactions` | ❌ | ✅ |
+| 25 | Fraud Analytics | `/analytics/fraud` | ❌ | ✅ |
+| 26 | Dispute Analytics | `/analytics/disputes` | ❌ | ✅ |
+| | **SYSTEM** | | | |
+| 27 | System Health | `/system/health` | ❌ | ✅ |
+| 28 | System Config | `/system/config` | ❌ | ✅ |
 
-### Phase 2 — Core Value (paling membedakan dari product lain)
-4. **Global Ledger list** — foundation hop tracker
-5. **Chain Visualizer** — the "wow" feature
-6. **Hop Chain Tracker** — real-time monitoring
-7. KYC queue
+**Total: 28 halaman — 28 SRS belum didefinisikan (di dokumen ini) + 28 Wireframe tersedia**
 
-### Phase 3 — Operations & Control
-8. Anomaly dashboard
-9. Anomaly detail
-10. Manual mint
-11. **Freeze Transaction** — admin bisa interrupt tx
-12. **Freeze User Wallet** — admin bisa blokir user
-13. Claim queue
+---
 
-### Phase 4 — Balance & Dispute (Trust Layer)
-14. **Balance Adjustment** — admin tambah/kurangi saldo
-15. **Dispute System** — client bisa banding dengan bukti
-16. Dispute review (admin)
-17. Dispute analytics
+## Referensi Wireframe
 
-### Phase 5 — Intelligence
-18. Transaction analytics
-19. Fraud analytics
-20. System health
-21. System config
+> Semua wireframe visual untuk dashboard ada di:
+> [`dokumen/ui_ux/dashboard/01_dashboard_wireframe.md`](../ui_ux/dashboard/01_dashboard_wireframe.md)
+>
+> Wireframe mencakup semua state: normal, loading, success, error, empty, disabled, warning.

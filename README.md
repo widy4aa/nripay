@@ -51,8 +51,15 @@ nirpay/
 ### 🖥️ Dashboard
 | Dokumen | Keterangan |
 |---|---|
-| [SRS Dashboard](dokumen/dashboard/srs_dashboard.md) | Admin panel — user, KYC, ledger, hop chain tracker, anomaly |
+| [SRS Dashboard](dokumen/dashboard/srs_dashboard.md) | Spesifikasi fungsional admin panel — API, data model, aturan bisnis |
 | [Dashboard Schema](dokumen/backend/nirpay_backend_schema.dbml) | Menggunakan schema backend (shared PostgreSQL) |
+
+### 🎨 UI/UX Wireframes
+| Dokumen | Keterangan |
+|---|---|
+| [Wireframe Index](dokumen/ui_ux/README.md) | Index semua wireframe + perbedaan SRS vs Wireframe |
+| [Client Wireframes](dokumen/ui_ux/client/) | Auth flow, home, wallet, NFC, top-up, sync, rollback, dispute (78 state) |
+| [Dashboard Wireframes](dokumen/ui_ux/dashboard/) | Login, overview, users, KYC, ledger, chain viewer, freeze, anomaly (19 state) |
 
 ## Tech Stack
 

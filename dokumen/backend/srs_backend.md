@@ -379,6 +379,102 @@ Client kirim `public_key_b64` ke server. Server hanya menyimpan public key.
 
 ---
 
+### 2.12 Update Profile
+
+| Atribut | Detail |
+|---------|--------|
+| **Endpoint** | `PUT /api/v1/auth/profile` |
+| **Status** | ❌ Belum Ada |
+| **Auth** | Bearer Token |
+
+**Request Body:**
+```json
+{
+  "full_name": "Widya Fitriadi",
+  "phone_number": "+6281234567890"
+}
+```
+
+**Logic:**
+1. Update `users.full_name` dan/atau `users.phone_number`
+2. Catat ke `audit_logs`
+3. Return: `{ success: true, user: { full_name, phone_number } }`
+
+**Catatan:** `email`, `username`, `birth_date` TIDAK bisa diedit (data KYC).
+
+---
+
+### 2.13 Change PIN
+
+| Atribut | Detail |
+|---------|--------|
+| **Endpoint** | `POST /api/v1/auth/change-pin` |
+| **Status** | ❌ Belum Ada |
+| **Auth** | Bearer Token |
+
+**Request Body:**
+```json
+{
+  "current_pin": "123456",
+  "new_pin": "654321"
+}
+```
+
+**Logic:**
+1. Verifikasi `current_pin` dengan `users.pin_hash` (Argon2id)
+2. Validasi `new_pin`: 6 digit, tidak berurutan (1234), tidak semua sama (111111)
+3. Hash `new_pin` dengan Argon2id
+4. Update `users.pin_hash`
+5. Catat ke `audit_logs`
+6. Return: `{ success: true }`
+
+---
+
+### 2.14 List Active Sessions
+
+| Atribut | Detail |
+|---------|--------|
+| **Endpoint** | `GET /api/v1/auth/sessions` |
+| **Status** | ❌ Belum Ada |
+| **Auth** | Bearer Token |
+
+**Logic:**
+1. Query `device_sessions` WHERE `user_id = current_user` AND `is_revoked = false`
+2. Return list semua sesi aktif (kecuali sesi saat ini)
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "id": "uuid",
+      "device_name": "Samsung Galaxy S24",
+      "ip_address": "192.168.1.100",
+      "last_active_at": "2026-07-12T14:30:00Z",
+      "created_at": "2026-07-10T08:00:00Z",
+      "is_current": true
+    }
+  ]
+}
+```
+
+---
+
+### 2.15 Revoke Specific Session
+
+| Atribut | Detail |
+|---------|--------|
+| **Endpoint** | `DELETE /api/v1/auth/sessions/:id` |
+| **Status** | ❌ Belum Ada |
+| **Auth** | Bearer Token |
+
+**Logic:**
+1. Cek `device_sessions` WHERE `id = :id` AND `user_id = current_user`
+2. Update `is_revoked = true`
+3. Return: `{ success: true }`
+
+---
+
 ## 3. Modul KYC
 
 ### 3.1 Upload KYC Face
@@ -720,7 +816,7 @@ interface LedgerEntry {
   sender_id: string;
   receiver_id: string;
   amount_cent: number;
-  status: 'SYNCED' | 'REJECTED';
+  status: 'SYNCED' | 'REJECTED' | 'FROZEN';
   created_at: Date;
 }
 
@@ -798,7 +894,7 @@ interface ReconcileResult {
 
 interface TransactionResult {
   tx_id: string;
-  status: 'SYNCED' | 'REJECTED';
+  status: 'SYNCED' | 'REJECTED' | 'FROZEN';
   server_balance_after: number | null;
   reject_reason: string | null;
   cascade_affected: string[];
@@ -861,14 +957,13 @@ interface SignPayload {
 1. Verifikasi PIN user dengan Argon2id hash di `users.pin_hash`
 2. Resolve `recipient_wallet_id` → dapat `users.server_id`
 3. Cek penerima bukan diri sendiri
-4. Cek saldo sender: `amount_cent - reserved_cent >= amount_cent`
+4. Cek saldo sender: `amount_cent - reserved_cent >= transfer_amount`
 5. Dalam satu DB transaction:
    - Debit sender: `wallet_balances.amount_cent -= amount_cent`
    - Kredit receiver: `wallet_balances.amount_cent += amount_cent`
-   - INSERT ke `global_ledger` (direction both sides)
-   - INSERT ke `online_transactions` (status=SUCCESS)
+   - INSERT ke `global_ledger` (direction both sides, transfer_medium='ONLINE')
    - Generate `server_tx_id`
-6. Return: `{ server_tx_id, status: 'SUCCESS', balance_after }`
+6. Return: `{ server_tx_id, status: 'CONFIRMED', balance_after }`
 
 **Response 200:**
 ```json
@@ -967,7 +1062,7 @@ interface SignPayload {
 ```json
 {
   "topup_id": "uuid-topup",
-  "status": "SUCCESS",
+  "status": "CONFIRMED",
   "amount_cent": 10000000,
   "confirmed_at": "2026-07-12T15:30:00Z",
   "balance_after": 20000000
@@ -1176,6 +1271,8 @@ Payment gateway (simulasi) mengirim notifikasi bahwa pembayaran VA/QRIS sudah be
 |----------|--------|------------|
 | `/api/v1/admin/users` | GET | List semua user (paginated, filterable) |
 | `/api/v1/admin/users/:id` | GET | Detail user + wallet + tx summary |
+| `/api/v1/admin/users/:id/chains` | GET | Semua chain yang diikuti user (per mint_tx_id) |
+| `/api/v1/admin/users/:id/hops` | GET | Hop history per chain untuk user ini |
 | `/api/v1/admin/users/:id/kyc` | GET | Detail KYC submission |
 | `/api/v1/admin/users/:id/kyc/approve` | POST | Approve KYC → `kyc_status = 'APPROVED'` |
 | `/api/v1/admin/users/:id/kyc/reject` | POST | Reject KYC → `kyc_status = 'REJECTED'` + reason |
@@ -1197,11 +1294,15 @@ Payment gateway (simulasi) mengirim notifikasi bahwa pembayaran VA/QRIS sudah be
 | Endpoint | Method | Keterangan |
 |----------|--------|------------|
 | `/api/v1/admin/transactions` | GET | Semua tx (filter: status, type, date range) |
+| `/api/v1/admin/transactions?frozen=true` | GET | Semua tx yang sedang dibekukan |
 | `/api/v1/admin/transactions/anomalies` | GET | Anomaly logs dari client (flagged tx) |
 | `/api/v1/admin/transactions/:tx_id` | GET | Detail tx + chain + audit trail |
 | `/api/v1/admin/transactions/:tx_id/freeze` | POST | **FREEZE transaksi** — hentikan pemrosesan |
 | `/api/v1/admin/transactions/:tx_id/unfreeze` | POST | **UNFREEZE transaksi** — lanjutkan pemrosesan |
 | `/api/v1/admin/transactions/:tx_id/force-close` | POST | **FORCE CLOSE** — tutup chain, tolak semua hop downstream |
+| `/api/v1/admin/accounts/frozen` | GET | Semua akun yang sedang dibekukan |
+| `/api/v1/admin/anomalies` | GET | Semua anomaly logs (paginated, filterable) |
+| `/api/v1/admin/anomalies/:id` | GET | Detail anomaly + related tx + user history |
 
 ### 11.4 Balance Adjustment (BARU)
 

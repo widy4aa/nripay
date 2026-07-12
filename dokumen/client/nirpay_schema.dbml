@@ -14,7 +14,7 @@
 //   SEND | RECEIVE
 //
 // transactions.tx_type
-//   P2P_TRANSFER | TOPUP | WITHDRAW | MERCHANT_PAYMENT | REFUND
+//   P2P_TRANSFER | TOPUP | WITHDRAW | MERCHANT_PAYMENT | REFUND | MANUAL_MINT | ROLLBACK | ADJUSTMENT | DISPUTE_REFUND
 //
 // transactions.transfer_medium
 //   NFC | BLUETOOTH | ONLINE
@@ -23,6 +23,7 @@
 //   PENDING   → baru dibuat di device, belum dikirim ke server
 //   SYNCED    → server konfirmasi valid
 //   REJECTED  → server tolak, rollback diperlukan
+//   FROZEN    → dibekukan oleh admin, tidak akan diproses saat sync
 //   N/A       → hanya untuk ONLINE tx (langsung kirim ke server, tidak antri)
 //
 // transactions.verify_status  (hasil verifikasi LOKAL di device penerima)
@@ -72,6 +73,8 @@ Table users {
   kyc_reject_reason text    [null, note: 'Alasan ditolak jika kyc_status = REJECTED']
   gender            text    [null, note: 'MALE | FEMALE']
   birth_date        text    [null, note: 'ISO 8601']
+  is_active         boolean [default: true, note: 'false = akun dibekukan admin']
+  is_locked         boolean [default: false, note: 'true = akun dikunci karena suspicious activity']
   created_at        integer [not null]
   updated_at        integer [not null]
 }
@@ -169,7 +172,7 @@ Table transactions {
   // ── Klasifikasi ──
   direction             text    [not null, note: 'SEND | RECEIVE']
   tx_type               text    [not null, default: 'P2P_TRANSFER',
-                                  note: 'P2P_TRANSFER | TOPUP | WITHDRAW | MERCHANT_PAYMENT | REFUND']
+                                  note: 'P2P_TRANSFER | TOPUP | WITHDRAW | MERCHANT_PAYMENT | REFUND | MANUAL_MINT | ROLLBACK | ADJUSTMENT | DISPUTE_REFUND']
   transfer_medium       text    [not null, default: 'NFC',
                                   note: 'NFC | BLUETOOTH | ONLINE']
 
@@ -207,11 +210,11 @@ Table transactions {
   // ── Status Sync ──
   timestamp             integer [not null, note: 'Unix timestamp saat tx dibuat di device']
   sync_status           text    [not null, default: 'PENDING',
-                                  note: 'PENDING | SYNCED | REJECTED | N/A']
+                                  note: 'PENDING | SYNCED | REJECTED | FROZEN | N/A']
   server_balance_after  integer [null,
                                   note: 'Saldo resmi server SETELAH tx ini diproses (isi dari response SYNCED). Device update amount_cent ke nilai ini — BUKAN hitung sendiri']
   reject_reason         text    [null,
-                                  note: 'Alasan reject dari server: DOUBLE_SPEND | INSUFFICIENT_BALANCE | HOP_EXCEEDED | SIG_INVALID | EXPIRED | CASCADE_PARENT_REJECTED | CHAIN_FORK']
+                                  note: 'Alasan reject dari server: DOUBLE_SPEND | INSUFFICIENT_BALANCE | HOP_EXCEEDED | SIG_INVALID | EXPIRED | CASCADE_PARENT_REJECTED | CHAIN_FORK | MANUAL_ADMIN | FORCE_CLOSED']
   note                  text    [null, note: 'Catatan bebas dari user']
   created_at            integer [not null]
 
@@ -349,7 +352,7 @@ Table topup_requests {
   va_number      text    [null]
   bank_code      text    [null]
   status         text    [not null, default: 'PENDING',
-                           note: 'PENDING | SUCCESS | EXPIRED | FAILED']
+                           note: 'PENDING | CONFIRMED | EXPIRED | FAILED']
   server_ref     text    [null]
   expired_at     integer [null]
   confirmed_at   integer [null]
@@ -369,6 +372,7 @@ Table claim_requests {
   user_id         integer [not null, ref: > users.id]
   tx_id           text    [not null, ref: > transactions.tx_id]
   reason          text    [not null]
+  evidence_urls   text    [null, note: 'JSON array URL bukti (screenshot, foto)']
   status          text    [not null, default: 'SUBMITTED',
                             note: 'SUBMITTED | UNDER_REVIEW | RESOLVED | REJECTED']
   server_claim_id text    [null]
@@ -378,6 +382,35 @@ Table claim_requests {
 
   indexes {
     (user_id, status) [name: 'idx_claim_user_status']
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// disputes — Client side
+//
+// Banding dari client terhadap keputusan admin (freeze, adjust, claim reject).
+// ═════════════════════════════════════════════════════════════════════════════
+
+Table disputes {
+  id              integer [pk, increment]
+  user_id         integer [not null, ref: > users.id]
+  dispute_type    text    [not null, note: 'TRANSACTION_FROZEN | BALANCE_ADJUSTMENT | CLAIM_REJECTED | ACCOUNT_FROZEN | OTHER']
+  reference_id    text    [not null, note: 'ID dari objek yang didispute']
+  reference_type  text    [not null, note: 'TRANSACTION | BALANCE_ADJUSTMENT | CLAIM | ACCOUNT']
+  title           text    [not null]
+  description     text    [not null]
+  evidence_urls   text    [null, note: 'JSON array URL bukti (screenshot, foto)']
+  status          text    [not null, default: 'SUBMITTED',
+                            note: 'SUBMITTED | UNDER_REVIEW | ACCEPTED | PARTIAL_ACCEPTED | REJECTED']
+  resolution      text    [null]
+  refund_amount_cent integer [null]
+  submitted_at    integer [not null]
+  reviewed_at     integer [null]
+  resolved_at     integer [null]
+
+  indexes {
+    (user_id, status)          [name: 'idx_dispute_user_status']
+    (reference_type, reference_id) [name: 'idx_dispute_reference']
   }
 }
 

@@ -1018,8 +1018,13 @@ ID Banding: [server_dispute_id]
 | **Route** | `/profile/personal-info` |
 | **Status** | ❌ Belum Ada |
 
-Edit: nama tampilan, username, nomor ponsel.
-Nama lengkap & tanggal lahir tidak bisa diedit (data KYC, perlu proses ulang).
+Edit: nama tampilan, nomor ponsel.
+Nama lengkap, username, & tanggal lahir tidak bisa diedit (data KYC).
+
+**Yang Belum:**
+- [ ] PUT /auth/profile → update full_name, phone_number
+- [ ] Validasi format nomor ponsel
+- [ ] Tidak bisa edit: email, username, birth_date (data KYC)
 
 ---
 
@@ -1031,6 +1036,11 @@ Nama lengkap & tanggal lahir tidak bisa diedit (data KYC, perlu proses ulang).
 | **Status** | ❌ Belum Ada |
 
 Alur: Masukkan PIN lama → Buat PIN baru → Konfirmasi PIN baru → Simpan
+
+**Yang Belum:**
+- [ ] POST /auth/change-pin → verify old PIN, hash new PIN, update pin_hash
+- [ ] Validasi: tidak berurutan (1234), tidak semua sama (111111)
+- [ ] Konfirmasi PIN baru harus cocok
 
 ---
 
@@ -1064,6 +1074,11 @@ Opsi: TOTP (Google Authenticator) atau SMS OTP saat login dari device baru.
 | **Status** | ❌ Belum Ada |
 
 Tampilkan semua `device_sessions` aktif. Tombol "Keluarkan perangkat ini" per item.
+
+**Yang Belum:**
+- [ ] GET /auth/sessions → list semua sesi aktif
+- [ ] DELETE /auth/sessions/:id → revoke sesi tertentu
+- [ ] Tandai sesi saat ini (is_current = true)
 
 ---
 

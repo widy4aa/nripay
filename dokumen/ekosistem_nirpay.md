@@ -110,6 +110,10 @@ nirpay/                             ← root repo GitHub
 │   │   ├── 3.md                    ← Sprint 3: Chain Visualizer & Rollback
 │   │   ├── 4.md                    ← Sprint 4: Admin Controls & Dispute
 │   │   └── 5.md                    ← Sprint 5: Fraud Detection & Prod Readiness
+│   ├── ui_ux/                        ← Wireframe & AI Prompts
+│   │   ├── README.md                 ← Index wireframe
+│   │   ├── client/                   ← Client wireframes (113 state + 113 AI prompts)
+│   │   └── dashboard/                ← Dashboard wireframes (26 state + 26 AI prompts)
 │   ├── unified_consistency.md      ← Source of Truth untuk semua enum & standard
 │   ├── visual_arsitektur.md
 │   ├── visual_arsitektur_besar.md

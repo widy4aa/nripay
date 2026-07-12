@@ -164,7 +164,7 @@ Table global_ledger {
   receiver_id       uuid      [not null, ref: > users.id, note: 'User penerima']
 
   // ── Klasifikasi ──
-  tx_type           text      [not null, note: 'TOPUP | P2P_TRANSFER | WITHDRAW | MERCHANT_PAYMENT | REFUND | MANUAL_MINT | ROLLBACK']
+  tx_type           text      [not null, note: 'TOPUP | P2P_TRANSFER | WITHDRAW | MERCHANT_PAYMENT | REFUND | MANUAL_MINT | ROLLBACK | ADJUSTMENT | DISPUTE_REFUND']
   direction         text      [not null, note: 'SEND | RECEIVE (satu baris per sisi)']
   transfer_medium   text      [not null, note: 'NFC | BLUETOOTH | ONLINE']
 
@@ -181,8 +181,8 @@ Table global_ledger {
   expires_at        timestamp [not null, note: 'timestamp + 72 jam. Tolak RECEIVE jika expired']
 
   // ── Status ──
-  status            text      [not null, default: 'SYNCED', note: 'SYNCED | REJECTED']
-  reject_reason     text      [null, note: 'DOUBLE_SPEND | CHAIN_FORK | INSUFFICIENT_BALANCE | HOP_EXCEEDED | SIG_INVALID | EXPIRED | CASCADE_PARENT_REJECTED | MANUAL_ADMIN']
+  status            text      [not null, default: 'SYNCED', note: 'SYNCED | REJECTED | FROZEN']
+  reject_reason     text      [null, note: 'DOUBLE_SPEND | CHAIN_FORK | INSUFFICIENT_BALANCE | HOP_EXCEEDED | SIG_INVALID | EXPIRED | CASCADE_PARENT_REJECTED | MANUAL_ADMIN | FORCE_CLOSED']
 
   // ── Balance Snapshot ──
   sender_balance_before   bigint [null, note: 'Snapshot saldo sender SEBELUM tx. Server pakai untuk validasi']

@@ -1,5 +1,5 @@
 # 🗄️ Database Schema — Nirpay (SQLite + SQLCipher + TEE)
-> **Last updated:** 2026-07-12 | **Schema version:** 4 (FINAL — full anomaly hardening)
+> **Last updated:** 2026-07-12 | **Schema version:** 5 (FINAL — full anomaly + admin control hardening)
 
 ---
 
@@ -40,6 +40,7 @@
 | 9 | `claim_requests` | Klaim transaksi yang di-reject server |
 | 10 | `device_sessions` | JWT token autentikasi |
 | 11 | `contacts_cache` | Cache nama kontak pernah bertransaksi |
+| 12 | `disputes` | **BARU** — Banding client terhadap keputusan admin |
 
 ---
 
@@ -85,6 +86,8 @@ users ─1:1─ wallet_balances
 | `kyc_reject_reason` | TEXT | NULL | Alasan ditolak |
 | `gender` | TEXT | NULL | `MALE\|FEMALE` |
 | `birth_date` | TEXT | NULL | ISO 8601 |
+| `is_active` | BOOLEAN | DEFAULT true | `false` = akun dibekukan admin |
+| `is_locked` | BOOLEAN | DEFAULT false | `true` = akun dikunci karena suspicious activity |
 | `created_at` | INTEGER | NOT NULL | |
 | `updated_at` | INTEGER | NOT NULL | |
 
@@ -180,9 +183,9 @@ Transaksi yang sama menghasilkan dua baris di dua device berbeda:
 | `raw_payload_b64` | TEXT | Raw bytes NFC/BT persis seperti diterima. Server verifikasi ulang dari ini. Juga untuk deteksi `TAMPERED_PAYLOAD` |
 | `local_balance_before` | INTEGER | Snapshot `amount_cent` sebelum tx. Server pakai untuk cascade rollback evaluation |
 | `timestamp` | INTEGER | Unix timestamp tx dibuat di device |
-| `sync_status` | TEXT | `PENDING\|SYNCED\|REJECTED\|N/A` |
+| `sync_status` | TEXT | `PENDING\|SYNCED\|REJECTED\|FROZEN\|N/A` |
 | `server_balance_after` | INTEGER | Saldo resmi server setelah tx diproses. Device update `amount_cent` ke nilai ini — tidak hitung sendiri |
-| `reject_reason` | TEXT | `DOUBLE_SPEND\|CHAIN_FORK\|INSUFFICIENT_BALANCE\|HOP_EXCEEDED\|SIG_INVALID\|EXPIRED\|CASCADE_PARENT_REJECTED` |
+| `reject_reason` | TEXT | `DOUBLE_SPEND\|CHAIN_FORK\|INSUFFICIENT_BALANCE\|HOP_EXCEEDED\|SIG_INVALID\|EXPIRED\|CASCADE_PARENT_REJECTED\|MANUAL_ADMIN\|FORCE_CLOSED` |
 | `note` | TEXT | Catatan bebas user |
 | `created_at` | INTEGER | |
 
@@ -315,14 +318,24 @@ synced_at, http_status, server_response, is_success
 ```
 user_id, tx_id (nullable → diisi setelah confirmed)
 amount_cent, currency, payment_method (VIRTUAL_ACCOUNT|BANK_TRANSFER|QRIS)
-va_number, bank_code, status, server_ref, expired_at, confirmed_at
+va_number, bank_code, status (PENDING|CONFIRMED|EXPIRED|FAILED), server_ref, expired_at, confirmed_at
 ```
 
 **`claim_requests`** — Klaim transaksi yang di-reject server
 ```
 user_id, tx_id → transactions.tx_id
-reason, status (SUBMITTED|UNDER_REVIEW|RESOLVED|REJECTED)
+reason, evidence_urls (JSON array URL bukti)
+status (SUBMITTED|UNDER_REVIEW|RESOLVED|REJECTED)
 server_claim_id, resolution, submitted_at, resolved_at
+```
+
+**`disputes`** — Banding client terhadap keputusan admin *(BARU v5)*
+```
+user_id, dispute_type (TRANSACTION_FROZEN|BALANCE_ADJUSTMENT|CLAIM_REJECTED|ACCOUNT_FROZEN|OTHER)
+reference_id, reference_type (TRANSACTION|BALANCE_ADJUSTMENT|CLAIM|ACCOUNT)
+title, description, evidence_urls (JSON array)
+status (SUBMITTED|UNDER_REVIEW|ACCEPTED|PARTIAL_ACCEPTED|REJECTED)
+resolution, refund_amount_cent, submitted_at, reviewed_at, resolved_at
 ```
 
 **`device_sessions`** — Token autentikasi

@@ -108,7 +108,8 @@ HOP_EXCEEDED              → hop_count >= max_hop
 SIG_INVALID               → Signature bank/sender tidak valid
 EXPIRED                   → Token sudah expired (> 72 jam)
 CASCADE_PARENT_REJECTED   → Parent tx di-reject, child juga di-reject
-MANUAL_ADMIN              → Admin reject secara manual (force rollback/force close)
+MANUAL_ADMIN              → Admin reject secara manual (force rollback)
+FORCE_CLOSED              → Admin force close chain (semua downstream reject)
 ```
 
 **Client mapping untuk UI:**
@@ -225,7 +226,7 @@ SUPER_ADMIN → Admin dengan akses penuh (force rollback, unfreeze, dll)
 | — | `frozen_transactions` | Server only |
 | — | `frozen_accounts` | Server only |
 | — | `balance_adjustments` | Server only |
-| — | `disputes` | Server only |
+| `disputes` | ✅ (client) | ✅ (server) | Client + Server |
 | — | `admin_actions` | Server only |
 | — | `audit_logs` | Server only |
 | — | `kyc_audit_logs` | Server only |
@@ -507,25 +508,29 @@ Contoh: 88020260712123456
 
 ---
 
-## 8. Ringkasan Semua Perubahan yang Diperlukan
+## 8. Ringkasan Semua Perubahan
 
-| # | Document | Perubahan | Severity |
-|---|----------|-----------|----------|
-| 1 | Client SRS | Tambah dispute submission module | 🔴 |
-| 2 | Client SRS | Tambah reject reason: MANUAL_ADMIN, FORCE_CLOSED | 🔴 |
-| 3 | Client SRS | Tambah tx_type: MANUAL_MINT, ROLLBACK, ADJUSTMENT | 🟡 |
-| 4 | Client SRS | Ubah topup status: SUCCESS → CONFIRMED | 🔴 |
-| 5 | Client SRS | Tambah evidence_urls ke claim_requests | 🟡 |
-| 6 | Client DBML | Ubah topup_requests.status: SUCCESS → CONFIRMED | 🔴 |
-| 7 | Client DBML | Update enum reference | 🟡 |
-| 8 | Backend SRS | Fix balance check typo | 🔴 |
-| 9 | Backend SRS | Fix Ed25519 keypair generation flow | 🔴 |
-| 10 | Backend SRS | Tambah FROZEN ke status enum | 🔴 |
-| 11 | Backend SRS | Tambah FORCE_CLOSED ke reject_reason | 🔴 |
-| 12 | Backend SRS | Seragamkan topup status: CONFIRMED | 🔴 |
-| 13 | Backend SRS | Fix VA format | 🟡 |
-| 14 | Backend DBML | Ubah anomaly_reports → anomaly_logs | 🔴 |
-| 15 | Backend DBML | Tambah FROZEN ke status | 🔴 |
+### ✅ SEMUA PERUBAHAN SUDAH DITERAPKAN
+
+| # | Document | Perubahan | Status |
+|---|----------|-----------|--------|
+| 1 | Client SRS | Tambah dispute submission module | ✅ |
+| 2 | Client SRS | Tambah reject reason: MANUAL_ADMIN, FORCE_CLOSED | ✅ |
+| 3 | Client SRS | Tambah tx_type: MANUAL_MINT, ROLLBACK, ADJUSTMENT | ✅ |
+| 4 | Client SRS | Ubah topup status: SUCCESS → CONFIRMED | ✅ |
+| 5 | Client SRS | Tambah evidence_urls ke claim_requests | ✅ |
+| 6 | Client DBML | Ubah topup_requests.status: SUCCESS → CONFIRMED | ✅ |
+| 7 | Client DBML | Tambah disputes table + is_active/is_locked | ✅ |
+| 8 | Backend SRS | Fix balance check typo | ✅ |
+| 9 | Backend SRS | Fix Ed25519 keypair generation flow | ✅ |
+| 10 | Backend SRS | Tambah FROZEN ke status enum | ✅ |
+| 11 | Backend SRS | Tambah FORCE_CLOSED ke reject_reason | ✅ |
+| 12 | Backend SRS | Tambah missing endpoints (profile, change-pin, sessions) | ✅ |
+| 13 | Backend DBML | Ubah anomaly_reports → anomaly_logs | ✅ |
+| 14 | Backend DBML | Fix field notes (status, reject_reason, tx_type) | ✅ |
+| 15 | Dashboard SRS | Tambah missing endpoints (frozen list, user chains/hops) | ✅ |
+| 16 | Unified | Tambah FORCE_CLOSED ke reject_reason enum | ✅ |
+| 17 | Unified | Fix disputes table mapping | ✅ |
 | 16 | Backend DBML | Tambah MANUAL_ADMIN, FORCE_CLOSED | 🔴 |
 | 17 | Backend DBML | Tambah ADJUSTMENT, DISPUTE_REFUND | 🟡 |
 | 18 | Backend DBML | Ubah topup status: CONFIRMED | 🔴 |
