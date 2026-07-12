@@ -698,7 +698,10 @@ Sync berjalan otomatis tanpa user harus tap tombol.
   - `CASCADE_PARENT_REJECTED` → "Terkait transaksi yang dibatalkan"
   - `EXPIRED` → "Transaksi melewati batas waktu"
   - `SIG_INVALID` → "Transaksi tidak dapat diverifikasi"
-- Per item: tombol **Ajukan Klaim**
+  - `DOUBLE_SPEND` → "Transaksi duplikat terdeteksi"
+  - `HOP_EXCEEDED` → "Pengirim perlu konfirmasi ke bank dulu"
+  - `MANUAL_ADMIN` → "Dibatalkan oleh admin"
+- Per item: tombol **Ajukan Klaim** atau **Ajukan Banding** (jika MANUAL_ADMIN)
 
 **Yang Belum:**
 - [ ] Semua data real dari Drift
@@ -913,6 +916,68 @@ ID Klaim: [server_claim_id]
 
 ---
 
+## 8A. Modul Banding / Dispute *(Halaman Baru)*
+> File: `lib/features/dispute/presentation/pages/`
+
+### 8A.1 Ajukan Banding *(Halaman Baru)*
+| Atribut | Detail |
+|---|---|
+| **File** | `dispute_page.dart` |
+| **Route** | `/dispute/:reference_id` |
+| **Status** | ❌ Belum Ada |
+
+**Deskripsi:**
+User membanding keputusan admin (freeze tx, adjust saldo, claim reject).
+User memberikan bukti untuk mendukung banding.
+
+**Elemen UI:**
+- Detail keputusan admin yang didispute (read-only)
+- Input: Judul banding
+- Input: Penjelasan detail (textarea)
+- Upload bukti (screenshot, foto, dokumen) — opsional, max 5 file
+- Tombol **Kirim Banding**
+
+**Dispute Type:**
+- `TRANSACTION_FROZEN` — Transaksi saya dibekukan
+- `BALANCE_ADJUSTMENT` — Saldo saya diubah tanpa persetujuan
+- `CLAIM_REJECTED` — Klaim saya ditolak
+- `ACCOUNT_FROZEN` — Akun saya dibekukan
+- `OTHER` — Lainnya
+
+**Setelah submit:**
+```
+✅ Banding Berhasil Dikirim
+
+Tim Bank akan meninjau banding kamu dalam 3×24 jam kerja.
+Kamu akan dihubungi via email: user@email.com
+
+ID Banding: [server_dispute_id]
+[Salin ID Banding]    [Kembali ke Beranda]
+```
+
+**Yang Belum:**
+- [ ] Semua halaman dispute
+- [ ] POST /dispute → submit banding
+- [ ] GET /dispute/:id → cek status
+- [ ] GET /dispute → list semua banding saya
+
+---
+
+### 8A.2 Status Banding *(Halaman Baru)*
+| Atribut | Detail |
+|---|---|
+| **File** | `dispute_status_page.dart` |
+| **Route** | `/dispute/:id/status` |
+| **Status** | ❌ Belum Ada |
+
+**Elemen UI:**
+- Timeline: Dikirim → Ditinjau → Selesai
+- Status: SUBMITTED / UNDER_REVIEW / ACCEPTED / PARTIAL_ACCEPTED / REJECTED
+- Hasil keputusan admin (jika sudah RESOLVED)
+- Detail refund (jika ACCEPTED)
+
+---
+
 ## 9. Modul Profile & Pengaturan
 > File: `lib/features/profile/`
 
@@ -1096,8 +1161,11 @@ Konfigurasi di Pengaturan: 1 menit / 5 menit / 30 menit / Tidak pernah.
 | **KLAIM** | | | | | |
 | 24 | Ajukan Klaim | `claim_page.dart` | ❌ | ❌ | ❌ |
 | 25 | Status Klaim | `claim_status_page.dart` | ❌ | ❌ | ❌ |
+| **BANDING / DISPUTE** | | | | | |
+| 26 | Ajukan Banding | `dispute_page.dart` | ❌ | ❌ | ❌ |
+| 27 | Status Banding | `dispute_status_page.dart` | ❌ | ❌ | ❌ |
 | **PROFIL** | | | | | |
-| 26 | Profil Utama | `profile_page.dart` | ✅ | ❌ | ❌ |
+| 28 | Profil Utama | `profile_page.dart` | ✅ | ❌ | ❌ |
 | 27 | Informasi Pribadi | `personal_info_page.dart` | ❌ | ❌ | ❌ |
 | 28 | Ganti PIN | `change_pin_page.dart` | ❌ | ❌ | ❌ |
 | 29 | Ganti Password | `change_password_page.dart` | ❌ | ❌ | ❌ |

@@ -24,10 +24,13 @@ nirpay/
 
 ## Dokumentasi
 
-### 🌐 Ekosistem
+### 🌐 Ekosistem & Roadmap
 | Dokumen | Keterangan |
 |---|---|
-| [Ekosistem Nirpay](dokumen/ekosistem_nirpay.md) | Arsitektur sistem keseluruhan, roadmap |
+| [Ekosistem Nirpay](dokumen/ekosistem_nirpay.md) | Arsitektur sistem keseluruhan, struktur monorepo |
+| [Roadmap 5 Sprint](dokumen/sprint/README.md) | **Panduan eksekusi Sprint 1 – 5** (Client, Server & Dashboard) |
+| [Unified Consistency](dokumen/unified_consistency.md) | *Single Source of Truth* — semua enum, status & kesepakatan teknis |
+| [Visual Arsitektur](dokumen/visual_arsitektur_besar.md) | Penjelasan visual 4 aktor & alur rekonsiliasi (siap foto) |
 
 ### 📱 Client (Flutter)
 | Dokumen | Keterangan |
@@ -40,11 +43,16 @@ nirpay/
 ### ⚙️ Backend
 | Dokumen | Keterangan |
 |---|---|
+| [SRS Backend](dokumen/backend/srs_backend.md) | Software Requirements Specification — seluruh API & modul |
+| [Backend Schema (DBML)](dokumen/backend/nirpay_backend_schema.dbml) | Database schema PostgreSQL — global ledger, users, wallet |
 | [Rollback Scenario](dokumen/backend/rollback_scenario.md) | Skenario double-spend & cascade rollback |
 | [Analysis Report](dokumen/backend/nirpay_analysis_report.md) | Gap analysis awal |
 
 ### 🖥️ Dashboard
-> Dokumentasi menyusul
+| Dokumen | Keterangan |
+|---|---|
+| [SRS Dashboard](dokumen/dashboard/srs_dashboard.md) | Admin panel — user, KYC, ledger, hop chain tracker, anomaly |
+| [Dashboard Schema](dokumen/backend/nirpay_backend_schema.dbml) | Menggunakan schema backend (shared PostgreSQL) |
 
 ## Tech Stack
 
@@ -53,8 +61,8 @@ nirpay/
 | Client | Flutter, Dart, SQLite + SQLCipher, Drift ORM |
 | Keamanan | AES-256 (Android Keystore / TEE), Ed25519, Argon2 |
 | Offline Transfer | NFC (HCE), Bluetooth |
-| Backend | TBD |
-| Dashboard | TBD |
+| Backend | Node.js (NestJS), PostgreSQL, Prisma, Redis |
+| Dashboard | TBD (menggunakan backend API yang sama) |
 
 ## Setup Client
 

@@ -59,6 +59,8 @@ nirpay/                             ← root repo GitHub
 │   │   │   ├── wallet/
 │   │   │   ├── transaction/
 │   │   │   ├── sync/
+│   │   │   ├── claim/
+│   │   │   ├── dispute/
 │   │   │   └── ...
 │   │   └── main.dart
 │   ├── pubspec.yaml
@@ -67,26 +69,9 @@ nirpay/                             ← root repo GitHub
 ├── backend/                        ← API Server (Node.js / NestJS / dll)
 │   ├── src/
 │   │   ├── api/                    ← REST API untuk Client App
-│   │   │   ├── auth/               ← POST /auth/login, register, otp
-│   │   │   ├── wallet/             ← GET /wallet/balance, resolve
-│   │   │   ├── sync/               ← POST /sync (rekonsiliasi offline tx)
-│   │   │   ├── transfer/           ← POST /transfer (online)
-│   │   │   ├── topup/              ← POST /topup/create, GET /topup/:id
-│   │   │   ├── kyc/                ← POST /kyc/face
-│   │   │   └── claim/              ← POST /claim, GET /claim/:id
-│   │   │
 │   │   ├── cbdc-core/              ← Logic inti CBDC (engine)
-│   │   │   ├── mint.service.ts     ← Minting token CBDC
-│   │   │   ├── ledger.service.ts   ← Global ledger, double-spend check
-│   │   │   ├── chain.service.ts    ← Rekonstruksi chain, fork detection
-│   │   │   ├── reconcile.service.ts← Reconciliation & cascade rollback
-│   │   │   └── signature.service.ts← Verifikasi Ed25519
-│   │   │
-│   │   └── mock-bank/              ← Simulator Bank Sentral
-│   │       ├── mint-cbdc.ts        ← Bank "kirim" CBDC ke user
-│   │       ├── bank-signature.ts   ← Generate bank signature (Ed25519)
-│   │       └── webhook-handler.ts  ← Terima notif payment gateway
-│   │
+│   │   ├── mock-bank/              ← Simulator Bank Sentral
+│   │   └── bank-adapter/           ← Integrasi bank asli (nanti)
 │   ├── prisma/                     ← Schema database server
 │   ├── package.json
 │   └── ...
@@ -94,20 +79,40 @@ nirpay/                             ← root repo GitHub
 ├── dashboard/                      ← Admin Panel (Next.js / React)
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── users/              ← KYC approve/reject
-│   │   │   ├── transactions/       ← Monitor tx, anomali
-│   │   │   ├── ledger/             ← Global ledger view
-│   │   │   ├── mint/               ← Manual mint CBDC
-│   │   │   └── analytics/          ← Statistik, fraud detection
+│   │   │   ├── users/
+│   │   │   ├── transactions/
+│   │   │   ├── ledger/
+│   │   │   ├── mint/
+│   │   │   ├── disputes/
+│   │   │   └── analytics/
 │   │   └── ...
 │   ├── package.json
 │   └── ...
 │
 ├── dokumen/                        ← Semua dokumentasi
-│   ├── srs_nirpay.md
-│   ├── database_schema.md
-│   ├── nirpay_schema.dbml
-│   ├── rollback_scenario.md
+│   ├── client/
+│   │   ├── srs_nirpay.md
+│   │   ├── database_schema.md
+│   │   ├── nirpay_schema.dbml
+│   │   └── crypto_implementation_plan.md
+│   ├── backend/
+│   │   ├── srs_backend.md
+│   │   ├── nirpay_backend_schema.dbml
+│   │   ├── rollback_scenario.md
+│   │   ├── migrasi_bank_asli.md
+│   │   └── nirpay_analysis_report.md
+│   ├── dashboard/
+│   │   └── srs_dashboard.md
+│   ├── sprint/                     ← Panduan eksekusi Sprint 1 – 5
+│   │   ├── README.md               ← Overview & Roadmap 5 Sprint
+│   │   ├── 1.md                    ← Sprint 1: Foundation, Auth & Wallet
+│   │   ├── 2.md                    ← Sprint 2: Offline CBDC & NFC Sync V1
+│   │   ├── 3.md                    ← Sprint 3: Chain Visualizer & Rollback
+│   │   ├── 4.md                    ← Sprint 4: Admin Controls & Dispute
+│   │   └── 5.md                    ← Sprint 5: Fraud Detection & Prod Readiness
+│   ├── unified_consistency.md      ← Source of Truth untuk semua enum & standard
+│   ├── visual_arsitektur.md
+│   ├── visual_arsitektur_besar.md
 │   └── ekosistem_nirpay.md
 │
 └── README.md                       ← Overview project + cara setup tiap folder
@@ -236,26 +241,35 @@ Client proses response:
 
 ---
 
-## Urutan Pengerjaan (Roadmap)
+## Urutan Pengerjaan (Roadmap 5 Sprint)
+
+> Untuk rincian tugas harian dan spesifikasi pengujian setiap sprint di 3 sisi (Client, Server, Dashboard), buka folder [`dokumen/sprint/`](sprint/README.md).
 
 ```
-Phase 1 — Sekarang:
-  ✅ client/   (Flutter) ← sudah jalan
-  🔲 backend/:
-       └─ cbdc-core/          ← engine dulu, yang lain tergantung ini
-       └─ api/auth + api/sync ← paling dibutuhkan client
-       └─ mock-bank/          ← agar bisa testing end-to-end
+Sprint 1 — Foundation, Auth & Wallet Core:
+  ✅ Setup Drift + SQLCipher terenkripsi di Client, Registrasi 5 langkah & Biometric.
+  🔲 Setup NestJS + Prisma PostgreSQL, modul Auth (JWT + OTP + Argon2id), saldo awal.
+  🔲 Setup Next.js Dashboard Admin, Login Admin, dan tabel daftar pengguna (User List).
 
-Phase 2:
-  🔲 backend/:
-       └─ api/topup + api/transfer + api/claim
-  🔲 dashboard/:
-       └─ minimal: KYC approve/reject + Mint CBDC + Ledger view
+Sprint 2 — Offline CBDC Engine, NFC Transfer & Sync V1:
+  🔲 Implementasi kriptografi Ed25519 ganda, komunikasi NFC HCE APDU, 5 Lapis Verifikasi lokal.
+  🔲 Pembangunan CBDC Core (Signature & Ledger Service), Batch Sync V1, Mock Bank Minting.
+  🔲 Buku Besar Global (`Global Ledger`), Filter Transaksi, dan Form Penerbitan CBDC Manual.
 
-Phase 3 — Integrasi Bank Asli:
-  🔲 backend/mock-bank/ → diganti adapter ke bank asli
-       └─ Bank implement contract API yang sudah didefinisikan di mock
-       └─ client/ dan dashboard/ tidak perlu berubah
+Sprint 3 — Chain Visualizer, Rollback Engine & Top-up / Online Transfer:
+  🔲 Pengeksekusi `RollbackQueue` lokal, layar pemberitahuan `balance_adjusted_page.dart`.
+  🔲 `ReconcileService` dengan *Cascade Rollback*, Top-up VA/QRIS, transfer online via ID Wallet.
+  🔲 **Chain Visualizer (Hop 0 → 3)**, Hop Chain Tracker, dan pemeriksaan antrean KYC.
+
+Sprint 4 — Admin Controls (Freeze/Adjust), Dispute & Claim System:
+  🔲 UI pengajuan Klaim dan Banding (Dispute) dengan pengunggah bukti, penanganan status FROZEN.
+  🔲 Endpoint intervensi Admin (`freeze` / `adjust`), modul Banding & Klaim, audit `admin_actions`.
+  🔲 Antarmuka kontrol pembekuan transaksi, penyesuaian saldo manual, dan tinjauan bukti banding.
+
+Sprint 5 — Fraud/Anomaly Detection, Security Hardening & Production Readiness:
+  🔲 Deteksi Root / Emulator / TEE, auto-lock aplikasi, pengiriman `anomaly_logs`.
+  🔲 Pipeline evaluasi anomali, Redis *Rate Limiting*, *Real Bank Adapter* (`BankProvider`), dan API *Health*.
+  🔲 Pusat pemantauan kecurangan (`Anomaly Monitor`), grafik analisis interaktif, dan dasbor infrastruktur.
 ```
 
 ---
